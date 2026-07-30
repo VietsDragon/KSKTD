@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.6
+// @version      7.10
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
 // @run-at       document-idle
+// @noframes
 // ==/UserScript==
 
 (function () {
@@ -1603,19 +1604,23 @@ async function autoM2KhamLamSang() {
             '🚀 AUTO M2';
 
 
+        button.className =
+            'medinet-toolbar-btn';
+
+
         Object.assign(
             button.style,
             {
                 position: 'fixed',
                 right: '20px',
-                bottom: '210px',
+                bottom: '272px',
                 zIndex: '999999',
-                padding: '10px 18px',
+                padding: '8px 14px',
                 background: '#c62828',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
-                fontSize: '15px',
+                fontSize: '13px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 boxShadow:
@@ -1641,6 +1646,10 @@ async function autoM2KhamLamSang() {
 
                 button.innerText =
                     '⏳ M2...';
+
+                showStatusBar(
+                    'Đang chạy AUTO M2...'
+                );
 
 
                 try {
@@ -1719,6 +1728,8 @@ async function autoM2KhamLamSang() {
 
 
                 } finally {
+
+                    hideStatusBar();
 
                     button.disabled =
                         false;
@@ -2305,19 +2316,23 @@ async function autoM2KhamLamSang() {
             '🚀 AUTO M3';
 
 
+        button.className =
+            'medinet-toolbar-btn';
+
+
         Object.assign(
             button.style,
             {
                 position: 'fixed',
                 right: '20px',
-                bottom: '155px',
+                bottom: '224px',
                 zIndex: '999999',
-                padding: '10px 18px',
+                padding: '8px 14px',
                 background: '#1976d2',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
-                fontSize: '15px',
+                fontSize: '13px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 boxShadow:
@@ -2343,6 +2358,10 @@ async function autoM2KhamLamSang() {
 
                 button.innerText =
                     '⏳ M3...';
+
+                showStatusBar(
+                    'Đang chạy AUTO M3...'
+                );
 
 
                 try {
@@ -2392,6 +2411,8 @@ async function autoM2KhamLamSang() {
                     );
 
                 } finally {
+
+                    hideStatusBar();
 
                     button.disabled =
                         false;
@@ -4369,19 +4390,23 @@ async function autoM2KhamLamSang() {
             '🚀 AUTO M4';
 
 
+        button.className =
+            'medinet-toolbar-btn';
+
+
         Object.assign(
             button.style,
             {
                 position: 'fixed',
                 right: '20px',
-                bottom: '100px',
+                bottom: '176px',
                 zIndex: '999999',
-                padding: '10px 18px',
+                padding: '8px 14px',
                 background: '#2e7d32',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
-                fontSize: '15px',
+                fontSize: '13px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 boxShadow:
@@ -4407,6 +4432,10 @@ async function autoM2KhamLamSang() {
 
                 button.innerText =
                     '⏳ M4...';
+
+                showStatusBar(
+                    'Đang chạy AUTO M4...'
+                );
 
 
                 try {
@@ -4471,6 +4500,8 @@ async function autoM2KhamLamSang() {
 
 
                 } finally {
+
+                    hideStatusBar();
 
                     button.disabled =
                         false;
@@ -7104,12 +7135,15 @@ async function autoM2KhamLamSang() {
         button.innerText =
             '📋 XEM CẢNH BÁO';
 
+        button.className =
+            'medinet-toolbar-btn';
+
         Object.assign(
             button.style,
             {
                 position: 'fixed',
                 right: '20px',
-                bottom: '265px',
+                bottom: '128px',
                 zIndex: '999999',
                 padding: '8px 14px',
                 background: '#8e24aa',
@@ -7136,10 +7170,182 @@ async function autoM2KhamLamSang() {
 
 
     // =========================================================
+    // STYLE ĐẸP CHO NHÓM NÚT (M2/M3/M4/Xem cảnh báo) - luôn
+    // hiện như cũ (users đã quen), chỉ làm gọn + đẹp hơn:
+    // bo tròn dạng pill, có hiệu ứng hover nhấc nhẹ lên.
+    // =========================================================
+
+    // =========================================================
+    // THANH THÔNG BÁO TRẠNG THÁI - hiện ở MÉP TRÊN màn hình
+    // khi script đang chạy (VD "Đang điền M3..."), tự ẩn khi
+    // xong. Đặt trên đầu để không đụng độ với nút cuộn trang/
+    // sidebar của portal ở góc dưới.
+    // =========================================================
+
+    function ensureStatusBarStyles() {
+
+        if (
+            document.getElementById(
+                'medinet-statusbar-style'
+            )
+        ) {
+
+            return;
+        }
+
+        const style =
+            document.createElement(
+                'style'
+            );
+
+        style.id =
+            'medinet-statusbar-style';
+
+        style.textContent = `
+            #medinet-status-bar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 9999999;
+                background: #0f172a;
+                color: #fff;
+                font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+                font-size: 13.5px;
+                font-weight: 600;
+                text-align: center;
+                padding: 9px 16px;
+                box-shadow: 0 2px 10px rgba(0,0,0,.3);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            #medinet-status-bar .medinet-spin {
+                display: inline-block;
+                width: 13px;
+                height: 13px;
+                border: 2px solid rgba(255,255,255,.35);
+                border-top-color: #fff;
+                border-radius: 50%;
+                animation: medinet-spin-anim .7s linear infinite;
+            }
+            @keyframes medinet-spin-anim {
+                to { transform: rotate(360deg); }
+            }
+        `;
+
+        document.head.appendChild(
+            style
+        );
+    }
+
+    function showStatusBar(
+        message
+    ) {
+
+        ensureStatusBarStyles();
+
+        let bar =
+            document.getElementById(
+                'medinet-status-bar'
+            );
+
+        if (!bar) {
+
+            bar =
+                document.createElement(
+                    'div'
+                );
+
+            bar.id =
+                'medinet-status-bar';
+
+            document.body.appendChild(
+                bar
+            );
+        }
+
+        bar.innerHTML =
+            '<span class="medinet-spin"></span>' +
+            '<span>' +
+            message +
+            '</span>';
+
+        bar.style.display =
+            'flex';
+    }
+
+    function hideStatusBar() {
+
+        const bar =
+            document.getElementById(
+                'medinet-status-bar'
+            );
+
+        if (bar) {
+
+            bar.style.display =
+                'none';
+        }
+    }
+
+
+    // =========================================================
+    // STYLE ĐẸP CHO NHÓM NÚT (M2/M3/M4/Xem cảnh báo) - luôn
+    // hiện như cũ (users đã quen), chỉ làm gọn + đẹp hơn:
+    // bo tròn dạng pill, có hiệu ứng hover nhấc nhẹ lên.
+    // =========================================================
+
+    function ensureToolbarStyles() {
+
+        if (
+            document.getElementById(
+                'medinet-toolbar-style'
+            )
+        ) {
+
+            return;
+        }
+
+        const style =
+            document.createElement(
+                'style'
+            );
+
+        style.id =
+            'medinet-toolbar-style';
+
+        style.textContent = `
+            .medinet-toolbar-btn {
+                border-radius: 999px !important;
+                letter-spacing: .2px;
+                transition: transform .12s ease,
+                    box-shadow .12s ease, filter .12s ease;
+            }
+            .medinet-toolbar-btn:hover {
+                transform: translateY(-2px);
+                filter: brightness(1.08);
+                box-shadow: 0 6px 16px rgba(0,0,0,.35) !important;
+            }
+            .medinet-toolbar-btn:active {
+                transform: translateY(0);
+            }
+        `;
+
+        document.head.appendChild(
+            style
+        );
+    }
+
+
+    // =========================================================
     // KHỞI ĐỘNG
     // =========================================================
 
     function init() {
+
+        ensureToolbarStyles();
 
         createM2Button();
 
