@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Medinet AUTO FILL M3 + M4 - Fast No Scroll
+// @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.4
-// @description  Auto Fill M3 + M4 theo từng tab - Click nhanh, không scroll
+// @version      7.5
+// @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
 // @run-at       document-idle
