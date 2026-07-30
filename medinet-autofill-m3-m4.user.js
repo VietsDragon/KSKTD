@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.5
+// @version      7.6
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -5422,7 +5422,7 @@ async function autoM2KhamLamSang() {
                     target
                 );
             }
-
+        
         );
     }
 
@@ -5443,34 +5443,28 @@ async function autoM2KhamLamSang() {
                 break;
             }
 
-            // CÁCH 1: ô số thuần kiểu cũ (dx-number-box)
-            const spinInput =
+            // Dùng CHUNG 1 selector tổng quát thay vì liệt kê
+            // từng kiểu role (spinbutton/combobox/textbox...).
+            // "dx-texteditor-input" là class GỐC dùng chung cho
+            // MỌI ô nhập liệu DevExtreme (NumberBox, TextBox,
+            // AutoComplete, SelectBox...) - class này do chính
+            // DevExtreme quy định, không phải thứ cổng nhập
+            // liệu tự đổi được, nên bền hơn nhiều so với dò
+            // theo "role" (thứ portal có vẻ hay đổi qua mỗi
+            // đợt cập nhật).
+            const input =
                 current.querySelector(
-                    'input.dx-texteditor-input[role="spinbutton"]'
+                    'input.dx-texteditor-input'
                 );
 
-            if (spinInput) {
+            if (input) {
 
                 return {
-                    element: spinInput,
-                    role: 'spinbutton'
-                };
-            }
-
-            // CÁCH 2: ô combobox kiểu mới (chấp nhận chữ +
-            // số, VD "Negative" hoặc số) - xuất hiện từ đợt
-            // cổng nhập liệu cập nhật cho khu Xét nghiệm
-            // nước tiểu
-            const comboInput =
-                current.querySelector(
-                    'input.dx-texteditor-input[role="combobox"]'
-                );
-
-            if (comboInput) {
-
-                return {
-                    element: comboInput,
-                    role: 'combobox'
+                    element: input,
+                    role:
+                        input.getAttribute(
+                            'role'
+                        ) || 'unknown'
                 };
             }
 
@@ -5724,23 +5718,125 @@ async function autoM2KhamLamSang() {
             );
 
         if (
-            inputInfo.role === 'combobox' &&
             !isNaN(n) &&
             n === 0
         ) {
 
+            // Thử điền chữ "Negative" trước, KHÔNG cần biết
+            // trước ô này có chấp nhận chữ hay không (role có
+            // thể đổi bất cứ lúc nào). Điền xong tự đọc lại -
+            // nếu ô KHÔNG nhận chữ (ô số thuần, chỉ nhận số),
+            // giá trị "Negative" sẽ không "dính" -> tự động
+            // chuyển sang điền số "0" thay thế.
             await dispatchInputValue(
                 inputInfo.element,
                 'Negative'
             );
 
-            return true;
+            await sleep(
+                80
+            );
+
+            const displayed =
+                (inputInfo.element.value || '').trim();
+
+            if (
+                displayed.toLowerCase().includes(
+                    'negative'
+                )
+            ) {
+
+                return true;
+            }
+
+            // Ô không nhận chữ -> điền số 0 thay thế
+            return await setNumberBoxValue(
+                inputInfo.element,
+                '0'
+            );
         }
 
         return await setNumberBoxValue(
             inputInfo.element,
             val
         );
+    }
+
+
+    // -----------------------------------------------------------
+    // KIỂM TRA + TỰ THỬ LẠI SAU KHI ĐIỀN (áp dụng cho MỌI loại
+    // ô, không cần biết trước là kiểu ô nào) - đọc lại giá trị
+    // thật đang hiển thị, so với giá trị vừa gõ. Nếu lệch, thử
+    // gõ lại 1 lần. Nhờ đây script tự thích ứng được với các
+    // kiểu ô mới cổng nhập liệu có thể đổi sang trong tương
+    // lai mà không cần biết trước hay sửa code.
+    // -----------------------------------------------------------
+
+    async function fillAndVerify(
+        inputInfo,
+        label,
+        valueToFill,
+        setterFn
+    ) {
+
+        await setterFn();
+
+        for (
+            let attempt = 0;
+            attempt < 2;
+            attempt++
+        ) {
+
+            await sleep(
+                attempt === 0 ? 100 : 150
+            );
+
+            const actualDisplayed =
+                (inputInfo.element.value || '').trim();
+
+            const expectedDigits =
+                valueToFill.toString().replace(
+                    /[^\d]/g,
+                    ''
+                );
+
+            const actualDigits =
+                actualDisplayed.replace(
+                    /[^\d]/g,
+                    ''
+                );
+
+            const looksOk =
+                !expectedDigits ||
+                actualDigits === expectedDigits ||
+                actualDisplayed.toLowerCase().includes(
+                    'negative'
+                );
+
+            if (looksOk) {
+
+                return true;
+            }
+
+            if (attempt === 0) {
+
+                warn(
+                    `⚠️ Lệch giá trị ở "${label}" (gõ ` +
+                    `"${valueToFill}" nhưng thấy ` +
+                    `"${actualDisplayed}") - thử gõ lại...`
+                );
+
+                await setterFn();
+            }
+        }
+
+        warn(
+            `⚠️ VẪN SAI SAU KHI THỬ LẠI: "${label}" - đã gõ ` +
+            `"${valueToFill}" nhưng ô hiện ` +
+            `"${(inputInfo.element.value || '').trim()}"`
+        );
+
+        return false;
     }
 
 
@@ -6148,39 +6244,50 @@ async function autoM2KhamLamSang() {
                     );
             }
 
-            if (
-                column === 'S.G'
-            ) {
+            const setterFn =
+                async () => {
 
-                // KHÔNG làm tròn - Tỉ trọng cần đủ 3 số thập
-                // phân (1.005-1.030), làm tròn 1 số sẽ mất hết
-                // ý nghĩa (VD 1.024 -> 1)
-                await dispatchInputValue(
-                    inputInfo.element,
-                    valueToFill.toString().replace(
-                        '.',
-                        ','
-                    )
-                );
+                    if (
+                        column === 'S.G'
+                    ) {
 
-            } else if (
-                QUALITATIVE_URINE_COLUMNS.includes(
-                    column
-                )
-            ) {
+                        // KHÔNG làm tròn - Tỉ trọng cần đủ 3
+                        // số thập phân (1.005-1.030), làm tròn
+                        // 1 số sẽ mất hết ý nghĩa
+                        await dispatchInputValue(
+                            inputInfo.element,
+                            valueToFill.toString().replace(
+                                '.',
+                                ','
+                            )
+                        );
 
-                await setQualitativeFieldValue(
-                    inputInfo,
-                    valueToFill
-                );
+                    } else if (
+                        QUALITATIVE_URINE_COLUMNS.includes(
+                            column
+                        )
+                    ) {
 
-            } else {
+                        await setQualitativeFieldValue(
+                            inputInfo,
+                            valueToFill
+                        );
 
-                await setNumberBoxValue(
-                    inputInfo.element,
-                    valueToFill
-                );
-            }
+                    } else {
+
+                        await setNumberBoxValue(
+                            inputInfo.element,
+                            valueToFill
+                        );
+                    }
+                };
+
+            await fillAndVerify(
+                inputInfo,
+                label,
+                valueToFill,
+                setterFn
+            );
 
             filled++;
 
