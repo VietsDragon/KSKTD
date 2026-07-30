@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Medinet AUTO FILL M3 + M4 - Fast No Scroll
 // @namespace    medinet-autofill-m3-m4
-// @version      7.2
+// @version      7.3
 // @description  Auto Fill M3 + M4 theo từng tab - Click nhanh, không scroll
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
