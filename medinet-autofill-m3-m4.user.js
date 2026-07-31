@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.10
+// @version      7.18
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -5453,7 +5453,7 @@ async function autoM2KhamLamSang() {
                     target
                 );
             }
-        
+
         );
     }
 
@@ -6057,12 +6057,579 @@ async function autoM2KhamLamSang() {
     }
 
 
+    // =========================================================
+    // =========================================================
+    //          M5 / M6 (Khám sức khỏe Người lái xe / Ô tô)
+    //
+    // 2 route khác nhau (kskdk_NguoiLaiXe, kskdk_Oto) nhưng
+    // cấu trúc trang GIỐNG HỆT NHAU - dùng chung 1 bộ logic.
+    //
+    // - Tiền sử: TÁI DÙNG autoM3TienSu() (đã xác nhận chạy
+    //   đúng qua nút AUTO M3 có sẵn).
+    // - Khám lâm sàng, mỗi khoa:
+    //   + "Chưa phát hiện bất thường" -> TÁI DÙNG
+    //     autoM3ChuaPhatHien()
+    //   + "Phân loại" (checkbox vuông Loại I-V) -> TÁI DÙNG
+    //     autoM2LoaiICheckbox()
+    //   + "Kết luận" (dropdown-select, MỚI) -> chọn
+    //     "Đủ điều kiện sức khỏe"
+    //   + "Từ chối khám" (Sản khoa/Phụ khoa, checkbox) -> MỚI,
+    //     tick hết
+    // =========================================================
+
+
     // -----------------------------------------------------------
-    // TRA GIÁ TRỊ THEO TÊN CỘT - LINH HOẠT (bỏ qua khoảng
-    // trắng, hoa/thường), vì tên cột trong code có thể lệch
-    // nhẹ so với tên cột thật trong sheet (VD "AST (GOT)" vs
-    // "AST(GOT)")
+    // TÌM NHÃN <b> KHỚP CHÍNH XÁC (bỏ dấu * bắt buộc ở cuối
+    // nếu có, VD "Kết luận *" -> "kết luận")
     // -----------------------------------------------------------
+
+    function findLabelsByExactText(
+        targetText
+    ) {
+
+        const target =
+            norm(
+                targetText
+            );
+
+        return [
+            ...document.querySelectorAll(
+                'b'
+            )
+        ].filter(
+            b => {
+
+                const text =
+                    norm(
+                        b.textContent
+                    ).replace(
+                        /\*\s*$/,
+                        ''
+                    ).trim();
+
+                return (
+                    text === target
+                );
+            }
+        );
+    }
+
+
+    // -----------------------------------------------------------
+    // TÍCH HẾT CHECKBOX THEO NHÃN (dùng cho "Từ chối khám")
+    // Tái dùng cấu trúc giống findChuaPhatHienCheckboxes nhưng
+    // tổng quát hoá theo nhãn bất kỳ.
+    // -----------------------------------------------------------
+
+    function findCheckboxesByLabelText(
+        targetText
+    ) {
+
+        const labels =
+            findLabelsByExactText(
+                targetText
+            );
+
+        const result =
+            [];
+
+        labels.forEach(
+            label => {
+
+                let current =
+                    label;
+
+                for (
+                    let level = 0;
+                    level < 10;
+                    level++
+                ) {
+
+                    if (!current) {
+                        break;
+                    }
+
+                    const checkbox =
+                        current.querySelector(
+                            '.dx-checkbox'
+                        );
+
+                    if (checkbox) {
+
+                        if (
+                            !result.some(
+                                x =>
+                                    x.checkbox ===
+                                    checkbox
+                            )
+                        ) {
+
+                            result.push({
+                                label,
+                                checkbox
+                            });
+                        }
+
+                        return;
+                    }
+
+                    current =
+                        current.parentElement;
+                }
+            }
+        );
+
+        return result;
+    }
+
+    async function autoCheckAllByLabelText(
+        targetText
+    ) {
+
+        const items =
+            findCheckboxesByLabelText(
+                targetText
+            );
+
+        log(
+            `Tìm thấy ${items.length} checkbox "${targetText}"`
+        );
+
+        let count = 0;
+        let skipped = 0;
+
+        for (
+            const item of items
+        ) {
+
+            const isChecked =
+                item.checkbox.classList.contains(
+                    'dx-checkbox-checked'
+                ) ||
+                item.checkbox.getAttribute(
+                    'aria-checked'
+                ) === 'true';
+
+            if (isChecked) {
+
+                skipped++;
+
+                continue;
+            }
+
+            fastClick(
+                item.checkbox
+            );
+
+            count++;
+
+            await sleep(
+                FAST_DELAY
+            );
+        }
+
+        return {
+            found: items.length,
+            count,
+            skipped
+        };
+    }
+
+
+    // -----------------------------------------------------------
+    // DROPDOWN-SELECT (VD "Kết luận") - readonly, phải click
+    // MỞ danh sách rồi click ĐÚNG dòng khớp, không gõ chữ trực
+    // tiếp được như ô combobox thường.
+    // -----------------------------------------------------------
+
+    // Chờ chủ động cho tới khi thấy item khớp trong dropdown
+    // xuất hiện (thay vì sleep cố định) - trả về phần tử khớp
+    // hoặc null nếu hết thời gian chờ mà không thấy
+    async function selectDropdownOption(
+        inputEl,
+        optionText
+    ) {
+
+        if (!inputEl) {
+
+            return false;
+        }
+
+        // Đã đúng giá trị sẵn rồi thì thôi
+        if (
+            norm(
+                inputEl.value
+            ) ===
+            norm(
+                optionText
+            )
+        ) {
+
+            return true;
+        }
+
+        // Mở dropdown
+        robustClick(
+            inputEl
+        );
+
+        await sleep(
+            200
+        );
+
+        const targetNorm =
+            norm(
+                optionText
+            );
+
+        // Tìm ĐÚNG popup thuộc về input này qua aria-owns -
+        // mỗi ô "Kết luận" có popup RIÊNG lồng ngay trong
+        // chính nó (không dùng chung 1 popup cho cả trang),
+        // và input có sẵn aria-owns trỏ thẳng tới id của danh
+        // sách thuộc về nó. Cách này CHẮC CHẮN đúng scope,
+        // không phụ thuộc offsetParent/display (DevExtreme ẩn
+        // popup bằng opacity/dx-state-invisible, không phải
+        // display:none, nên offsetParent không đáng tin ở đây)
+        const ownsId =
+            inputEl.getAttribute(
+                'aria-owns'
+            );
+
+        let scope =
+            ownsId
+                ? document.getElementById(
+                    ownsId
+                )
+                : null;
+
+        if (!scope) {
+
+            scope =
+                inputEl.closest(
+                    '.dx-select-box'
+                ) ||
+                inputEl.closest(
+                    '.dx-selectbox'
+                ) ||
+                document;
+        }
+
+        const items = [
+            ...scope.querySelectorAll(
+                '.dx-item.dx-list-item, .dx-item'
+            )
+        ];
+
+        const match =
+            items.find(
+                el => {
+
+                    const content =
+                        el.querySelector(
+                            '.dx-item-content'
+                        ) ||
+                        el;
+
+                    return (
+                        norm(
+                            content.textContent
+                        ) ===
+                        targetNorm
+                    );
+                }
+            );
+
+        if (!match) {
+
+            warn(
+                'Không tìm thấy lựa chọn trong dropdown:',
+                optionText
+            );
+
+            // Đóng dropdown lại (bấm ra ngoài input)
+            inputEl.blur();
+
+            await sleep(
+                100
+            );
+
+            return false;
+        }
+
+        robustClick(
+            match
+        );
+
+        await sleep(
+            150
+        );
+
+        return true;
+    }
+
+    async function autoSelectAllKetLuan(
+        optionText
+    ) {
+
+        const labels =
+            findLabelsByExactText(
+                'Kết luận'
+            );
+
+        log(
+            `Tìm thấy ${labels.length} ô "Kết luận"`
+        );
+
+        let count = 0;
+        let skipped = 0;
+        let notFound = 0;
+
+        for (
+            const label of labels
+        ) {
+
+            const inputInfo =
+                findNumberInputForLabel(
+                    label
+                );
+
+            if (
+                !inputInfo ||
+                inputInfo.role !== 'combobox'
+            ) {
+
+                notFound++;
+
+                continue;
+            }
+
+            const alreadyOk =
+                norm(
+                    inputInfo.element.value
+                ) ===
+                norm(
+                    optionText
+                );
+
+            if (alreadyOk) {
+
+                skipped++;
+
+                continue;
+            }
+
+            const ok =
+                await selectDropdownOption(
+                    inputInfo.element,
+                    optionText
+                );
+
+            if (ok) {
+
+                count++;
+
+            } else {
+
+                notFound++;
+            }
+        }
+
+        return {
+            found: labels.length,
+            count,
+            skipped,
+            notFound
+        };
+    }
+
+
+    // -----------------------------------------------------------
+    // M5/M6 - KHÁM LÂM SÀNG (gộp cả 4 việc)
+    // -----------------------------------------------------------
+
+    async function autoM5M6KhamLamSang() {
+
+        log(
+            '================================'
+        );
+
+        log(
+            '🚀 M5/M6 - AUTO KHÁM LÂM SÀNG'
+        );
+
+        log(
+            '================================'
+        );
+
+        // 1. Chưa phát hiện bất thường (tái dùng M3)
+        await autoM3ChuaPhatHien();
+
+        await sleep(
+            FAST_DELAY
+        );
+
+        // 2. Loại I - checkbox (tái dùng M2)
+        const loaiIResult =
+            await autoM2LoaiICheckbox();
+
+        // 3. Kết luận -> Đủ điều kiện sức khỏe
+        const ketLuanResult =
+            await autoSelectAllKetLuan(
+                'Đủ điều kiện sức khỏe'
+            );
+
+        // 4. Từ chối khám (Sản khoa/Phụ khoa)
+        const tuChoiResult =
+            await autoCheckAllByLabelText(
+                'Từ chối khám'
+            );
+
+        alert(
+            '✅ M5/M6 - Đã Auto Fill Khám lâm sàng!\n\n' +
+            '✓ Chưa phát hiện bất thường\n' +
+            `✓ Loại I - tổng ${loaiIResult.found}, ` +
+            `đã chọn ${loaiIResult.count}\n` +
+            `✓ Kết luận - tổng ${ketLuanResult.found}, ` +
+            `đã chọn ${ketLuanResult.count}, ` +
+            `đã sẵn ${ketLuanResult.skipped}` +
+            (
+                ketLuanResult.notFound
+                    ? `, lỗi ${ketLuanResult.notFound}`
+                    : ''
+            ) +
+            '\n' +
+            `✓ Từ chối khám - tổng ${tuChoiResult.found}, ` +
+            `đã chọn ${tuChoiResult.count}\n\n` +
+            'Vui Lòng Kiểm Tra Trước Khi Lưu.\n'
+        );
+    }
+
+
+    // -----------------------------------------------------------
+    // M5/M6 - HÀM CHÍNH (tự nhận tab qua nội dung trang, giống
+    // cách M3/M4 đang làm)
+    // -----------------------------------------------------------
+
+    async function autoM5M6() {
+
+        const bodyText =
+            norm(
+                document.body.innerText
+            );
+
+        if (
+            bodyText.includes(
+                'chưa phát hiện bất thường'
+            )
+        ) {
+
+            await autoM5M6KhamLamSang();
+
+        } else {
+
+            // Mặc định Tiền sử - tái dùng M3 (đã xác nhận
+            // chạy đúng)
+            await autoM3TienSu();
+        }
+    }
+
+
+    function createM5M6Button() {
+
+        if (
+            document.getElementById(
+                'medinet-auto-m5m6'
+            )
+        ) {
+
+            return;
+        }
+
+        const button =
+            document.createElement(
+                'button'
+            );
+
+        button.id =
+            'medinet-auto-m5m6';
+
+        button.innerText =
+            '🚀 AUTO M5/M6';
+
+        button.className =
+            'medinet-toolbar-btn';
+
+        Object.assign(
+            button.style,
+            {
+                position: 'fixed',
+                right: '20px',
+                bottom: '320px',
+                zIndex: '999999',
+                padding: '8px 14px',
+                background: '#0d9488',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow:
+                    '0 3px 10px rgba(0,0,0,.3)'
+            }
+        );
+
+        button.addEventListener(
+            'click',
+            async function () {
+
+                if (
+                    button.disabled
+                ) {
+
+                    return;
+                }
+
+                button.disabled =
+                    true;
+
+                button.innerText =
+                    '⏳ M5/M6...';
+
+                try {
+
+                    await autoM5M6();
+
+                } catch (e) {
+
+                    console.error(
+                        LOG,
+                        e
+                    );
+
+                    alert(
+                        '❌ Lỗi AUTO M5/M6.\n\n' +
+                        'Mở F12 → Console để xem chi tiết.'
+                    );
+
+                } finally {
+
+                    button.disabled =
+                        false;
+
+                    button.innerText =
+                        '🚀 AUTO M5/M6';
+                }
+            }
+        );
+
+        document.body.appendChild(
+            button
+        );
+    }
+
+
+
 
     function normalizeColKey(s) {
 
@@ -7352,6 +7919,8 @@ async function autoM2KhamLamSang() {
         createM3Button();
 
         createM4Button();
+
+        createM5M6Button();
 
         createXemCanhBaoButton();
 
