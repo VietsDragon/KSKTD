@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.19
+// @version      7.20
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -6993,7 +6993,7 @@ async function autoM2KhamLamSang() {
             min: 45, max: 80,
             maleMin: 45, maleMax: 80,
             femaleMin: 45, femaleMax: 80,
-            high: { code: 'N19', name: 'Suy giảm chức năng thận' }
+            high: { code: 'R94.4', name: 'Chức năng thận bất thường' }
         },
         {
             column: 'AST', label: 'ASAT(GOT)',
