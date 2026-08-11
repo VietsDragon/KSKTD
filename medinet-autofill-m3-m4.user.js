@@ -6979,7 +6979,7 @@ async function autoM2KhamLamSang() {
         },
         {
             column: 'Glucose', label: 'Đường máu',
-            min: 3.9, max: 5.5
+            min: 3.9, max: 5.5,
             low: { code: 'E16.2', name: 'Hạ đường huyết' },
             high: { code: 'R73.9', name: 'Tăng đường huyết - theo dõi đái tháo đường' }
         },
