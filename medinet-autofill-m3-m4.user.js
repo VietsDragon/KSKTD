@@ -6926,24 +6926,24 @@ async function autoM2KhamLamSang() {
     const CAN_LAM_SANG_REFERENCE = [
         {
             column: 'RBC', label: 'Số lượng HC',
-            min: 4.0, max: 5.4,
-            maleMin: 4.2, maleMax: 5.4,
-            femaleMin: 4.0, femaleMax: 4.9,
+            min: 3.8, max: 5.6,
+            maleMin: 3.8, maleMax: 5.6,
+            femaleMin: 3.8, femaleMax: 5.6,
             low: { code: 'D64.9', name: 'Thiếu máu chưa xác định' },
             high: { code: 'D75.1', name: 'Đa hồng cầu thứ phát' }
         },
         {
             column: 'HGB', label: 'Huyết sắc tố',
-            min: 120, max: 160,
-            maleMin: 130, maleMax: 160,
-            femaleMin: 120, femaleMax: 142,
+            min: 120, max: 180,
+            maleMin: 120, maleMax: 180,
+            femaleMin: 120, femaleMax: 180,
             low: { code: 'D64.9', name: 'Thiếu máu' }
         },
         {
             column: 'HCT', label: 'Hematocrit',
-            min: 0.37, max: 0.52,
-            maleMin: 0.45, maleMax: 0.52,
-            femaleMin: 0.37, femaleMax: 0.48,
+            min: 0.35, max: 0.52,
+            maleMin: 0.35, maleMax: 0.52,
+            femaleMin: 0.35, femaleMax: 0.52,
             low: { code: 'D64.9', name: 'Thiếu máu' },
             high: { code: 'D75.1', name: 'Đa hồng cầu' }
         },
@@ -6954,7 +6954,7 @@ async function autoM2KhamLamSang() {
             high: { code: 'D53.9', name: 'Thiếu máu hồng cầu to' }
         },
         { column: 'MCH', label: 'MCH', min: 28, max: 32 },
-        { column: 'MCHC', label: 'MCHC', min: 320, max: 360 },
+        { column: 'MCHC', label: 'MCHC', min: 310, max: 360 },
         { column: 'RDW', label: 'RDW', min: 10, max: 16.5 },
         {
             column: 'WBC', label: 'Số lượng bạch cầu',
@@ -6979,7 +6979,7 @@ async function autoM2KhamLamSang() {
         },
         {
             column: 'Glucose', label: 'Đường máu',
-            min: 3.9, max: 6.4,
+            min: 3.9, max: 5.5
             low: { code: 'E16.2', name: 'Hạ đường huyết' },
             high: { code: 'R73.9', name: 'Tăng đường huyết - theo dõi đái tháo đường' }
         },
@@ -6990,9 +6990,9 @@ async function autoM2KhamLamSang() {
         },
         {
             column: 'Creatinine', label: 'Creatinin',
-            min: 44, max: 106,
-            maleMin: 62, maleMax: 106,
-            femaleMin: 44, femaleMax: 80,
+            min: 45, max: 80,
+            maleMin: 45, maleMax: 80,
+            femaleMin: 45, femaleMax: 80,
             high: { code: 'N19', name: 'Suy giảm chức năng thận' }
         },
         {
