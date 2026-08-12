@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.21
+// @version      7.22
 // @description  Tự Động Điền KSK TD
 // @author       Trần Xuân Cường
 // @match        https://quanlyskcd.medinet.org.vn/*
@@ -6998,16 +6998,16 @@ async function autoM2KhamLamSang() {
         },
         {
             column: 'AST', label: 'ASAT(GOT)',
-            min: 0, max: 50,
-            maleMin: 0, maleMax: 50,
-            femaleMin: 0, femaleMax: 35,
+            min: 13, max: 31,
+            maleMin: 13, maleMax: 31,
+            femaleMin: 13, femaleMax: 31,
             high: { code: 'R74.0', name: 'Tăng men gan' }
         },
         {
             column: 'ALT', label: 'ALAT(GPT)',
-            min: 0, max: 50,
-            maleMin: 0, maleMax: 50,
-            femaleMin: 0, femaleMax: 35,
+            min: 7, max: 40,
+            maleMin: 7, maleMax: 40,
+            femaleMin: 7, femaleMax: 40,
             high: { code: 'R74.0', name: 'Tăng men gan' }
         },
         { column: 'S.G', label: 'Tỉ trọng nước tiểu', min: 1.005, max: 1.030 },
