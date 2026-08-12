@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.28
+// @version      7.29
 // @description  Tự Động Điền KSK TD
 // @author       Trần Xuân Cường
 // @match        https://quanlyskcd.medinet.org.vn/*
@@ -3732,7 +3732,9 @@ async function autoM2KhamLamSang() {
         return (
             rows +
             '<div class="mnm-note">⚠️ Chỉ mang tính tham khảo - ' +
-            'KHÔNG thay thế chẩn đoán của bác sĩ.</div>'
+            'KHÔNG thay thế chẩn đoán của bác sĩ.</div>' +
+            '<div class="mnm-note">📌 Mã ICD-10 chỉ là gợi ý sơ bộ - ' +
+            'có thể bỏ qua nếu giá trị chỉ lệch nhẹ, sát khoảng tham chiếu.</div>'
         );
     }
 
