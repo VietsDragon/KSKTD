@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.25
+// @version      7.26
 // @description  Tự Động Điền KSK TD
 // @author       Trần Xuân Cường
 // @match        https://quanlyskcd.medinet.org.vn/*
@@ -6930,29 +6930,29 @@ async function autoM2KhamLamSang() {
             min: 3.8, max: 5.6,
             maleMin: 3.8, maleMax: 5.6,
             femaleMin: 3.8, femaleMax: 5.6,
-            low: { code: 'D64.9', name: 'Thiếu máu chưa xác định, Bỏ qua nếu chêch lệch ít' },
-            high: { code: 'D75.1', name: 'Đa hồng cầu thứ phát, Bỏ qua nếu chêch lệch ít' }
+            low: { code: 'D64.9', name: 'Thiếu máu chưa xác định' },
+            high: { code: 'D75.1', name: 'Đa hồng cầu thứ phát' }
         },
         {
             column: 'HGB', label: 'Huyết sắc tố',
             min: 120, max: 180,
             maleMin: 120, maleMax: 180,
             femaleMin: 120, femaleMax: 180,
-            low: { code: 'D64.9', name: 'Thiếu máu, Bỏ qua nếu chêch lệch ít' }
+            low: { code: 'D64.9', name: 'Thiếu máu' }
         },
         {
             column: 'HCT', label: 'Hematocrit',
             min: 0.35, max: 0.52,
             maleMin: 0.35, maleMax: 0.52,
             femaleMin: 0.35, femaleMax: 0.52,
-            low: { code: 'D64.9', name: 'Thiếu máu, Bỏ qua nếu chêch lệch ít' },
-            high: { code: 'D75.1', name: 'Đa hồng cầu, Bỏ qua nếu chêch lệch ít' }
+            low: { code: 'D64.9', name: 'Thiếu máu' },
+            high: { code: 'D75.1', name: 'Đa hồng cầu' }
         },
         {
             column: 'MCV', label: 'MCV',
             min: 85, max: 95,
-            low: { code: 'D50.9', name: 'Thiếu máu hồng cầu nhỏ (gợi ý thiếu sắt), Bỏ qua nếu chêch lệch ít' },
-            high: { code: 'D53.9', name: 'Thiếu máu hồng cầu to, Bỏ qua nếu chêch lệch ít' }
+            low: { code: 'D50.9', name: 'Thiếu máu hồng cầu nhỏ (gợi ý thiếu sắt)' },
+            high: { code: 'D53.9', name: 'Thiếu máu hồng cầu to' }
         },
         { column: 'MCH', label: 'MCH', min: 28, max: 32 },
         { column: 'MCHC', label: 'MCHC', min: 310, max: 360 },
@@ -6960,8 +6960,8 @@ async function autoM2KhamLamSang() {
         {
             column: 'WBC', label: 'Số lượng bạch cầu',
             min: 4.0, max: 10.0,
-            low: { code: 'D72.8', name: 'Giảm bạch cầu', Bỏ qua nếu chêch lệch ít },
-            high: { code: 'D72.8', name: 'Tăng bạch cầu', Bỏ qua nếu chêch lệch ít }
+            low: { code: 'D72.8', name: 'Giảm bạch cầu' },
+            high: { code: 'D72.8', name: 'Tăng bạch cầu' }
         },
         { column: 'NEU#', label: 'BC trung tính', min: 1.7, max: 7.0 },
         { column: 'LYM#', label: 'BC lympho', min: 1.0, max: 4.0 },
@@ -6969,83 +6969,83 @@ async function autoM2KhamLamSang() {
         {
             column: 'EOS#', label: 'BC ái toan',
             min: 0.0, max: 0.5,
-            high: { code: 'D72.1', name: 'Tăng bạch cầu ái toan', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'D72.1', name: 'Tăng bạch cầu ái toan' }
         },
         { column: 'BASO#', label: 'BC ái kiềm', min: 0.0, max: 0.1 },
         {
             column: 'PLT', label: 'Tiểu cầu',
             min: 150, max: 400,
-            low: { code: 'D69.6', name: 'Giảm tiểu cầu', Bỏ qua nếu chêch lệch ít },
-            high: { code: 'D75.2', name: 'Tăng tiểu cầu', Bỏ qua nếu chêch lệch ít }
+            low: { code: 'D69.6', name: 'Giảm tiểu cầu' },
+            high: { code: 'D75.2', name: 'Tăng tiểu cầu' }
         },
         {
             column: 'Glucose', label: 'Đường máu',
             min: 3.9, max: 5.5,
-            low: { code: 'E16.2', name: 'Theo dõi Hạ đường huyết, Bỏ qua nếu chêch lệch ít' },
-            high: { code: 'R73.9', name: 'Tăng đường huyết - theo dõi đái tháo đường, Bỏ qua nếu chêch lệch ít' }
+            low: { code: 'E16.2', name: 'Hạ đường huyết' },
+            high: { code: 'R73.9', name: 'Tăng đường huyết - theo dõi đái tháo đường' }
         },
         {
             column: 'Ure', label: 'Urê',
             min: 2.5, max: 7.5,
-            high: { code: 'R79.8', name: 'Tăng ure máu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R79.8', name: 'Tăng ure máu' }
         },
         {
             column: 'Creatinine', label: 'Creatinin',
             min: 45, max: 80,
             maleMin: 64, maleMax: 105,
             femaleMin: 45, femaleMax: 80,
-            high: { code: 'R94.4', name: 'Chức năng thận bất thường', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R94.4', name: 'Chức năng thận bất thường' }
         },
         {
             column: 'AST', label: 'ASAT(GOT)',
             min: 13, max: 31,
             maleMin: 13, maleMax: 31,
             femaleMin: 13, femaleMax: 31,
-            high: { code: 'R74.0', name: 'Tăng men gan', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R74.0', name: 'Tăng men gan' }
         },
         {
             column: 'ALT', label: 'ALAT(GPT)',
             min: 7, max: 40,
             maleMin: 7, maleMax: 40,
             femaleMin: 7, femaleMax: 40,
-            high: { code: 'R74.0', name: 'Tăng men gan', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R74.0', name: 'Tăng men gan' }
         },
         { column: 'S.G', label: 'Tỉ trọng nước tiểu', min: 1.005, max: 1.030 },
         { column: 'pH', label: 'pH nước tiểu', min: 5.0, max: 8.0 },
         {
             column: 'LEU', label: 'Bạch cầu niệu',
             min: 0, max: 0,
-            high: { code: 'N39.0', name: 'Nhiễm khuẩn đường tiết niệu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'N39.0', name: 'Nhiễm khuẩn đường tiết niệu' }
         },
         {
             column: 'BLD', label: 'Hồng cầu niệu',
             min: 0, max: 0,
-            high: { code: 'R31', name: 'Tiểu máu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R31', name: 'Tiểu máu' }
         },
         {
             column: 'PRO', label: 'Protein niệu',
             min: 0, max: 0,
-            high: { code: 'R80', name: 'Protein niệu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R80', name: 'Protein niệu' }
         },
         {
             column: 'GLU', label: 'Glucose niệu',
             min: 0, max: 0,
-            high: { code: 'R81', name: 'Đường niệu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R81', name: 'Đường niệu' }
         },
         {
             column: 'KET', label: 'Thể cetonic niệu',
             min: 0, max: 0,
-            high: { code: 'R82.4', name: 'Ceton niệu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R82.4', name: 'Ceton niệu' }
         },
         {
             column: 'BIL', label: 'Bilirubin niệu',
             min: 0, max: 0,
-            high: { code: 'R82.2', name: 'Bilirubin niệu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R82.2', name: 'Bilirubin niệu' }
         },
         {
             column: 'URO', label: 'Urobilinogen niệu',
             min: 0, max: 17,
-            high: { code: 'R82.2', name: 'Tăng urobilinogen niệu', Bỏ qua nếu chêch lệch ít }
+            high: { code: 'R82.2', name: 'Tăng urobilinogen niệu' }
         }
     ];
 
