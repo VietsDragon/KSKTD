@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.22
+// @version      7.23
 // @description  Tự Động Điền KSK TD
 // @author       Trần Xuân Cường
 // @match        https://quanlyskcd.medinet.org.vn/*
@@ -6992,7 +6992,7 @@ async function autoM2KhamLamSang() {
         {
             column: 'Creatinine', label: 'Creatinin',
             min: 45, max: 80,
-            maleMin: 45, maleMax: 80,
+            maleMin: 64, maleMax: 105,
             femaleMin: 45, femaleMax: 80,
             high: { code: 'R94.4', name: 'Chức năng thận bất thường' }
         },
