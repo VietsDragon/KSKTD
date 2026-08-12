@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.24
+// @version      7.25
 // @description  Tự Động Điền KSK TD
 // @author       Trần Xuân Cường
 // @match        https://quanlyskcd.medinet.org.vn/*
