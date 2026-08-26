@@ -1,9 +1,8 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.29
+// @version      7.30
 // @description  Tự Động Điền KSK TD
-// @author       Trần Xuân Cường
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
 // @run-at       document-idle
@@ -2533,6 +2532,40 @@ async function autoM2KhamLamSang() {
                 font-size: 13.5px;
             }
             .mnm-patient-card b { color: #0f172a; }
+            .mnm-pick-list {
+                max-height: 340px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin: 4px -4px 0;
+                padding: 4px;
+            }
+            .mnm-pick-item {
+                text-align: left;
+                background: #f8fafc;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 10px 14px;
+                font-size: 13.5px;
+                color: #1e293b;
+                cursor: pointer;
+                font-family: inherit;
+                transition: border-color .12s, background .12s;
+            }
+            .mnm-pick-item:hover {
+                border-color: #2563eb;
+                background: #eff6ff;
+            }
+            .mnm-pick-item b {
+                color: #0f172a;
+                font-size: 14px;
+            }
+            .mnm-pick-item .mnm-pick-sub {
+                margin-top: 3px;
+                color: #64748b;
+                font-size: 12.5px;
+            }
             .mnm-finding-row {
                 display: flex;
                 align-items: flex-start;
@@ -3732,9 +3765,7 @@ async function autoM2KhamLamSang() {
         return (
             rows +
             '<div class="mnm-note">⚠️ Chỉ mang tính tham khảo - ' +
-            'KHÔNG thay thế chẩn đoán của bác sĩ.</div>' +
-            '<div class="mnm-note">📌 Mã ICD-10 chỉ là gợi ý sơ bộ - ' +
-            'có thể bỏ qua nếu giá trị chỉ lệch nhẹ, sát khoảng tham chiếu.</div>'
+            'KHÔNG thay thế chẩn đoán của bác sĩ.</div>'
         );
     }
 
@@ -5184,97 +5215,185 @@ async function autoM2KhamLamSang() {
         searchDesc
     ) {
 
-        let listText =
-            `Tìm thấy ${matches.length} kết quả khớp với ${searchDesc}:\n\n`;
+        ensureModalStyles();
 
-        matches.forEach(
-            (d, i) => {
+        return new Promise(
+            resolve => {
 
-                const ten =
-                    getDataValueByColumn(
-                        d,
-                        'Tên bệnh nhân'
-                    ) || '?';
+                const overlay =
+                    document.createElement('div');
 
-                const tuoi =
-                    getDataValueByColumn(
-                        d,
-                        'Tuổi'
-                    ) || '?';
+                overlay.className =
+                    'mnm-overlay';
 
-                const gtRaw =
-                    (
-                        getDataValueByColumn(
-                            d,
-                            'Giới tính'
-                        ) || ''
-                    ).toString().trim().toUpperCase();
+                const box =
+                    document.createElement('div');
 
-                const gtText =
-                    gtRaw === 'F'
-                        ? 'Nữ'
-                        : (
-                            gtRaw === 'M'
-                                ? 'Nam'
-                                : (gtRaw || '?')
+                box.className =
+                    'mnm-box';
+
+                const header =
+                    document.createElement('div');
+
+                header.className =
+                    'mnm-header';
+
+                header.textContent =
+                    `🔎 Tìm thấy ${matches.length} kết quả khớp`;
+
+                const body =
+                    document.createElement('div');
+
+                body.className =
+                    'mnm-body';
+
+                const descEl =
+                    document.createElement('div');
+
+                descEl.style.marginBottom =
+                    '10px';
+
+                descEl.style.color =
+                    '#64748b';
+
+                descEl.style.fontSize =
+                    '13px';
+
+                descEl.textContent =
+                    `Khớp với ${searchDesc} - bấm đúng người để chọn:`;
+
+                body.appendChild(
+                    descEl
+                );
+
+                const listEl =
+                    document.createElement('div');
+
+                listEl.className =
+                    'mnm-pick-list';
+
+                const finish =
+                    value => {
+
+                        document.body.removeChild(
+                            overlay
                         );
 
-                const sidVal =
-                    getDataValueByColumn(
-                        d,
-                        'SID'
-                    ) || '?';
+                        resolve(
+                            value
+                        );
+                    };
 
-                const ngay =
-                    getDataValueByColumn(
-                        d,
-                        'Ngày XN'
-                    ) || '?';
+                matches.forEach(
+                    (d, i) => {
 
-                listText +=
-                    `${i + 1}. ${ten} - ${tuoi} tuổi, ${gtText} - ` +
-                    `SID ${sidVal} - Ngày XN ${ngay}\n`;
+                        const ten =
+                            getDataValueByColumn(
+                                d,
+                                'Tên bệnh nhân'
+                            ) || '?';
+
+                        const tuoi =
+                            getDataValueByColumn(
+                                d,
+                                'Tuổi'
+                            ) || '?';
+
+                        const gtRaw =
+                            (
+                                getDataValueByColumn(
+                                    d,
+                                    'Giới tính'
+                                ) || ''
+                            ).toString().trim().toUpperCase();
+
+                        const gtText =
+                            gtRaw === 'F'
+                                ? 'Nữ'
+                                : (
+                                    gtRaw === 'M'
+                                        ? 'Nam'
+                                        : (gtRaw || '?')
+                                );
+
+                        const sidVal =
+                            getDataValueByColumn(
+                                d,
+                                'SID'
+                            ) || '?';
+
+                        const ngay =
+                            getDataValueByColumn(
+                                d,
+                                'Ngày XN'
+                            ) || '?';
+
+                        const item =
+                            document.createElement(
+                                'button'
+                            );
+
+                        item.type =
+                            'button';
+
+                        item.className =
+                            'mnm-pick-item';
+
+                        item.innerHTML =
+                            `<b>${i + 1}. ${ten}</b>` +
+                            '<div class="mnm-pick-sub">' +
+                            `${tuoi} tuổi, ${gtText} &nbsp;•&nbsp; ` +
+                            `SID ${sidVal} &nbsp;•&nbsp; Ngày XN ${ngay}` +
+                            '</div>';
+
+                        item.addEventListener(
+                            'click',
+                            () =>
+                                finish(d)
+                        );
+
+                        listEl.appendChild(
+                            item
+                        );
+                    }
+                );
+
+                body.appendChild(
+                    listEl
+                );
+
+                const footer =
+                    document.createElement('div');
+
+                footer.className =
+                    'mnm-footer';
+
+                const btnCancel =
+                    document.createElement('button');
+
+                btnCancel.className =
+                    'mnm-btn mnm-btn-secondary';
+
+                btnCancel.textContent =
+                    'Huỷ';
+
+                btnCancel.addEventListener(
+                    'click',
+                    () =>
+                        finish(null)
+                );
+
+                footer.appendChild(
+                    btnCancel
+                );
+
+                box.appendChild(header);
+                box.appendChild(body);
+                box.appendChild(footer);
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
             }
         );
-
-        listText +=
-            `\nNhập số thứ tự (1-${matches.length}) để chọn, ` +
-            'để trống/Cancel để huỷ:';
-
-        const choice =
-            prompt(
-                listText
-            );
-
-        if (
-            !choice ||
-            !choice.trim()
-        ) {
-
-            return null;
-        }
-
-        const idx =
-            parseInt(
-                choice.trim(),
-                10
-            );
-
-        if (
-            isNaN(idx) ||
-            idx < 1 ||
-            idx > matches.length
-        ) {
-
-            alert(
-                '⚠️ Lựa chọn không hợp lệ.\n\n' +
-                KHOA_XN_CONTACT_MSG
-            );
-
-            return null;
-        }
-
-        return matches[idx - 1];
     }
 
 
@@ -5456,7 +5575,7 @@ async function autoM2KhamLamSang() {
                     target
                 );
             }
-
+        
         );
     }
 
@@ -6929,24 +7048,24 @@ async function autoM2KhamLamSang() {
     const CAN_LAM_SANG_REFERENCE = [
         {
             column: 'RBC', label: 'Số lượng HC',
-            min: 3.8, max: 5.6,
-            maleMin: 3.8, maleMax: 5.6,
-            femaleMin: 3.8, femaleMax: 5.6,
+            min: 4.0, max: 5.4,
+            maleMin: 4.2, maleMax: 5.4,
+            femaleMin: 4.0, femaleMax: 4.9,
             low: { code: 'D64.9', name: 'Thiếu máu chưa xác định' },
             high: { code: 'D75.1', name: 'Đa hồng cầu thứ phát' }
         },
         {
             column: 'HGB', label: 'Huyết sắc tố',
-            min: 120, max: 180,
-            maleMin: 120, maleMax: 180,
-            femaleMin: 120, femaleMax: 180,
+            min: 120, max: 160,
+            maleMin: 130, maleMax: 160,
+            femaleMin: 120, femaleMax: 142,
             low: { code: 'D64.9', name: 'Thiếu máu' }
         },
         {
             column: 'HCT', label: 'Hematocrit',
-            min: 0.35, max: 0.52,
-            maleMin: 0.35, maleMax: 0.52,
-            femaleMin: 0.35, femaleMax: 0.52,
+            min: 0.37, max: 0.52,
+            maleMin: 0.45, maleMax: 0.52,
+            femaleMin: 0.37, femaleMax: 0.48,
             low: { code: 'D64.9', name: 'Thiếu máu' },
             high: { code: 'D75.1', name: 'Đa hồng cầu' }
         },
@@ -6957,7 +7076,7 @@ async function autoM2KhamLamSang() {
             high: { code: 'D53.9', name: 'Thiếu máu hồng cầu to' }
         },
         { column: 'MCH', label: 'MCH', min: 28, max: 32 },
-        { column: 'MCHC', label: 'MCHC', min: 310, max: 360 },
+        { column: 'MCHC', label: 'MCHC', min: 320, max: 360 },
         { column: 'RDW', label: 'RDW', min: 10, max: 16.5 },
         {
             column: 'WBC', label: 'Số lượng bạch cầu',
@@ -6982,7 +7101,7 @@ async function autoM2KhamLamSang() {
         },
         {
             column: 'Glucose', label: 'Đường máu',
-            min: 3.9, max: 5.5,
+            min: 3.9, max: 6.4,
             low: { code: 'E16.2', name: 'Hạ đường huyết' },
             high: { code: 'R73.9', name: 'Tăng đường huyết - theo dõi đái tháo đường' }
         },
@@ -6993,23 +7112,23 @@ async function autoM2KhamLamSang() {
         },
         {
             column: 'Creatinine', label: 'Creatinin',
-            min: 45, max: 80,
-            maleMin: 64, maleMax: 105,
-            femaleMin: 45, femaleMax: 80,
-            high: { code: 'R94.4', name: 'Chức năng thận bất thường' }
+            min: 44, max: 106,
+            maleMin: 62, maleMax: 106,
+            femaleMin: 44, femaleMax: 80,
+            high: { code: 'N19', name: 'Suy giảm chức năng thận' }
         },
         {
             column: 'AST', label: 'ASAT(GOT)',
-            min: 13, max: 31,
-            maleMin: 13, maleMax: 31,
-            femaleMin: 13, femaleMax: 31,
+            min: 0, max: 50,
+            maleMin: 0, maleMax: 50,
+            femaleMin: 0, femaleMax: 35,
             high: { code: 'R74.0', name: 'Tăng men gan' }
         },
         {
             column: 'ALT', label: 'ALAT(GPT)',
-            min: 7, max: 40,
-            maleMin: 7, maleMax: 40,
-            femaleMin: 7, femaleMax: 40,
+            min: 0, max: 50,
+            maleMin: 0, maleMax: 50,
+            femaleMin: 0, femaleMax: 35,
             high: { code: 'R74.0', name: 'Tăng men gan' }
         },
         { column: 'S.G', label: 'Tỉ trọng nước tiểu', min: 1.005, max: 1.030 },
@@ -7383,7 +7502,7 @@ async function autoM2KhamLamSang() {
         } else {
 
             data =
-                pickFromMultipleMatches(
+                await pickFromMultipleMatches(
                     matches,
                     searchDesc
                 );
