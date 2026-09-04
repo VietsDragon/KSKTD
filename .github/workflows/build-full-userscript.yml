@@ -1,0 +1,46 @@
+name: Build full KSK userscript
+
+on:
+  push:
+    branches:
+      - ux-autosave-refactor
+    paths:
+      - medinet-autofill-m3-m4.user.js
+      - simple-ui-addon.js
+      - .github/workflows/build-full-userscript.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build single full userscript
+        run: |
+          cp medinet-autofill-m3-m4.user.js KSKTD-FULL-SIMPLE-UI.user.js
+          printf '\n\n// =========================================================\n// SIMPLE UI + SAFE AUTO SAVE\n// =========================================================\n\n' >> KSKTD-FULL-SIMPLE-UI.user.js
+          cat simple-ui-addon.js >> KSKTD-FULL-SIMPLE-UI.user.js
+          python3 - <<'PY'
+          p = 'KSKTD-FULL-SIMPLE-UI.user.js'
+          s = open(p, encoding='utf-8').read()
+          s = s.replace('// @version      7.30', '// @version      8.00')
+          s = s.replace('// @name         Auto KSK TD', '// @name         Auto KSK TD - Full Simple UI')
+          open(p, 'w', encoding='utf-8', newline='\n').write(s)
+          PY
+
+      - name: Commit generated full file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add KSKTD-FULL-SIMPLE-UI.user.js
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git commit -m "build: refresh full simple UI userscript"
+          git push
