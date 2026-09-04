@@ -8096,7 +8096,7 @@ async function autoM2KhamLamSang() {
   const state = {
     busy: false,
     status: 'Sẵn sàng',
-    detail: 'Hệ thống sẽ tự nhận diện phần đang làm.',
+    detail: 'Bấm “Tự động điền” để bắt đầu.',
     lastContext: ''
   };
 
@@ -8130,43 +8130,49 @@ async function autoM2KhamLamSang() {
     const body = norm(document.body?.innerText || '');
     if (body.includes('kết quả xét nghiệm máu')) return 'Cận lâm sàng';
     if (tab.includes('hỏi bệnh và khám lâm sàng')) return 'Hỏi bệnh và khám lâm sàng';
+    if (tab.includes('đánh giá sức khỏe tâm thần')) return 'Đánh giá sức khỏe tâm thần';
     if (tab.includes('thông tin khám')) return 'Khám lâm sàng';
     if (body.includes('chưa phát hiện bất thường')) return 'Khám lâm sàng';
     if (body.includes('tiền sử')) return 'Tiền sử';
     return 'Hồ sơ khám sức khỏe';
   }
 
+  // Engine buttons may be intentionally hidden by this UI, so DO NOT require visibility.
   function findLegacyAutoButton() {
-    const els = [...document.querySelectorAll('button, [role="button"], .dx-button, [id^="medinet-auto-"]')]
-      .filter(el => !el.closest(`#${ROOT_ID}`))
-      .filter(isVisible);
+    const els = [...document.querySelectorAll('[id^="medinet-auto-"], .medinet-toolbar-btn')]
+      .filter(el => !el.closest(`#${ROOT_ID}`));
 
     const tab = getTabTitle();
     const body = norm(document.body?.innerText || '');
+    const url = location.href.toLowerCase();
 
-    // Ưu tiên đúng nút theo ngữ cảnh nếu script gốc tạo nhiều nút.
-    const wanted = [];
-    if (tab.includes('hỏi bệnh và khám lâm sàng') || body.includes('d8.5.1')) wanted.push('m4');
-    if (body.includes('thông tin khám bệnh nhân dưới 18 tuổi')) wanted.push('m2');
-    if (body.includes('người lái xe') || location.href.toLowerCase().includes('nguoilaixe') || location.href.toLowerCase().includes('oto')) {
-      wanted.push('m5/m6', 'm5', 'm6');
-    }
-    wanted.push('m3', 'm4', 'm2', 'm5/m6', 'm5', 'm6');
+    const byId = id => document.getElementById(id);
 
-    for (const key of wanted) {
-      const hit = els.find(el => {
-        const t = norm(el.innerText || el.textContent || el.value || '');
-        return t.includes('auto') && t.includes(key);
-      });
-      if (hit) return hit;
+    if (url.includes('nguoilaixe') || url.includes('kskdk_oto') || body.includes('người lái xe')) {
+      return byId('medinet-auto-m5m6') || els.find(el => norm(el.textContent).includes('m5/m6')) || null;
     }
-    return null;
+
+    if (
+      tab.includes('tiền sử bệnh nhân dưới 18 tuổi') ||
+      tab.includes('đánh giá sức khỏe tâm thần') ||
+      tab.includes('thông tin khám bệnh nhân dưới 18 tuổi') ||
+      body.includes('thông tin khám bệnh nhân dưới 18 tuổi')
+    ) {
+      return byId('medinet-auto-m2') || null;
+    }
+
+    if (tab.includes('hỏi bệnh và khám lâm sàng') || body.includes('d8.5.1') || body.includes('hầu như không')) {
+      return byId('medinet-auto-m4') || null;
+    }
+
+    return byId('medinet-auto-m3') || null;
   }
 
   function findWarningButton() {
-    return [...document.querySelectorAll('button, [role="button"], .dx-button, a')]
-      .filter(el => !el.closest(`#${ROOT_ID}`))
-      .find(el => norm(el.innerText || el.textContent || '') === 'xem cảnh báo') || null;
+    return document.getElementById('medinet-xem-canhbao') ||
+      [...document.querySelectorAll('button, [role="button"], .dx-button, a')]
+        .filter(el => !el.closest(`#${ROOT_ID}`))
+        .find(el => norm(el.innerText || el.textContent || '') === 'xem cảnh báo') || null;
   }
 
   function looksLegacy(el) {
@@ -8174,7 +8180,7 @@ async function autoM2KhamLamSang() {
     const id = norm(el.id || '');
     const cls = norm(typeof el.className === 'string' ? el.className : '');
     const text = norm(el.innerText || el.textContent || el.value || '');
-    if (id.startsWith('medinet-auto-')) return true;
+    if (id.startsWith('medinet-auto-') || id === 'medinet-xem-canhbao') return true;
     if (cls.includes('medinet-toolbar-btn')) return true;
     return (
       (text.includes('auto m2') || text.includes('auto m3') || text.includes('auto m4') ||
@@ -8191,24 +8197,36 @@ async function autoM2KhamLamSang() {
       });
   }
 
+  function snapshotForm() {
+    let score = 0;
+    document.querySelectorAll('input, textarea, select').forEach(el => {
+      if (el.closest(`#${ROOT_ID}`) || el.disabled) return;
+      if (String(el.value || '').trim()) score++;
+    });
+    score += document.querySelectorAll(
+      '.dx-checkbox-checked, [role="radio"][aria-checked="true"], .dx-list-item-selected, input[type="checkbox"]:checked, input[type="radio"]:checked'
+    ).length;
+    return score;
+  }
+
   function ensureStyles() {
     if (document.getElementById('ksk-simple-style')) return;
     const s = document.createElement('style');
     s.id = 'ksk-simple-style';
     s.textContent = `
       .${LEGACY_HIDDEN_CLASS}{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-      #${ROOT_ID}{position:fixed;right:18px;bottom:18px;width:250px;z-index:1000005;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#0f172a;background:rgba(255,255,255,.98);border:1px solid #dbe4ee;border-radius:16px;box-shadow:0 14px 36px rgba(15,23,42,.16);overflow:hidden;backdrop-filter:blur(10px)}
+      #${ROOT_ID}{position:fixed;right:18px;bottom:18px;width:244px;z-index:1000005;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#0f172a;background:rgba(255,255,255,.98);border:1px solid #dbe4ee;border-radius:16px;box-shadow:0 14px 36px rgba(15,23,42,.16);overflow:hidden;backdrop-filter:blur(10px)}
       #${ROOT_ID} *{box-sizing:border-box}
-      .ksks-head{padding:13px 14px 11px;border-bottom:1px solid #eef2f7}
+      .ksks-head{padding:13px 14px 10px;border-bottom:1px solid #eef2f7}
       .ksks-title{font-size:13px;font-weight:800;letter-spacing:.2px}
       .ksks-context{margin-top:4px;color:#64748b;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .ksks-body{padding:12px}
-      .ksks-run{width:100%;min-height:50px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 7px 16px rgba(37,99,235,.20)}
+      .ksks-run{width:100%;min-height:48px;border:0;border-radius:11px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 7px 16px rgba(37,99,235,.20)}
       .ksks-run:hover{filter:brightness(.98)}
       .ksks-run:disabled{opacity:.62;cursor:progress}
-      .ksks-status{margin-top:10px;padding:10px 11px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}
-      .ksks-status strong{display:block;font-size:12.5px}
-      .ksks-status span{display:block;margin-top:3px;color:#64748b;font-size:11.5px;line-height:1.35}
+      .ksks-status{margin-top:9px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}
+      .ksks-status strong{display:block;font-size:12.3px}
+      .ksks-status span{display:block;margin-top:3px;color:#64748b;font-size:11.3px;line-height:1.35}
       .ksks-warning{margin-top:8px;width:100%;border:1px solid #dbe4ee;background:#fff;color:#475569;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer}
       #ksk-simple-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:10000030;padding:10px 15px;border-radius:10px;color:#fff;background:#15803d;box-shadow:0 10px 28px rgba(15,23,42,.22);font:600 12.5px/1.4 "Segoe UI",Roboto,Arial,sans-serif;opacity:0;transition:.2s;pointer-events:none}
       #ksk-simple-toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
@@ -8276,11 +8294,11 @@ async function autoM2KhamLamSang() {
   }
 
   async function autoSave() {
-    await sleep(220);
+    await sleep(250);
     const saves = [...new Set(getSaveButtons())];
     if (saves.length !== 1) {
       state.status = 'Đã điền xong';
-      state.detail = saves.length === 0 ? 'Chưa tìm thấy nút Lưu.' : 'Có nhiều nút Lưu nên hệ thống chưa tự bấm.';
+      state.detail = saves.length === 0 ? 'Vui lòng bấm Lưu trên hồ sơ.' : 'Chưa tự lưu để tránh bấm nhầm.';
       toast('Đã điền xong nhưng chưa thể tự lưu an toàn.', 'warn', 4500);
       return false;
     }
@@ -8290,11 +8308,11 @@ async function autoM2KhamLamSang() {
     render();
     saves[0].click();
 
-    await sleep(900);
+    await sleep(1000);
     const body = norm(document.body?.innerText || '');
     if (body.includes('lưu thất bại') || body.includes('không thể lưu') || body.includes('lỗi máy chủ')) {
       state.status = 'Lưu chưa thành công';
-      state.detail = 'Medinet báo lỗi khi lưu.';
+      state.detail = 'Vui lòng kiểm tra lại.';
       toast('Đã điền nhưng lưu chưa thành công.', 'error', 5000);
       return false;
     }
@@ -8310,65 +8328,72 @@ async function autoM2KhamLamSang() {
     const btn = findLegacyAutoButton();
     if (!btn) {
       state.status = 'Chưa sẵn sàng';
-      state.detail = 'Không nhận diện được chức năng tự động ở trang này.';
+      state.detail = 'Trang này chưa hỗ trợ tự động điền.';
       render();
       return;
     }
 
     state.busy = true;
     state.status = 'Đang xử lý…';
-    state.detail = 'Không cần thao tác thêm.';
+    state.detail = 'Vui lòng chờ.';
     render();
 
+    const before = snapshotForm();
     const originalAlert = window.alert;
-    let success = false;
+    let successAlert = false;
     let failed = false;
 
     window.alert = function(message) {
-      const t = norm(String(message || ''));
-      if (t.includes('✅') || t.includes('đã auto fill')) {
-        success = true;
+      const raw = String(message || '');
+      const t = norm(raw);
+      if (raw.includes('✅') || t.includes('đã auto fill')) {
+        successAlert = true;
         return;
       }
-      if (t.includes('❌') || t.includes('lỗi auto')) failed = true;
+      if (raw.includes('❌') || t.includes('lỗi auto')) failed = true;
       return originalAlert.call(window, message);
     };
 
     try {
       btn.click();
 
-      for (let i = 0; i < 20 && !btn.disabled; i++) await sleep(50);
+      for (let i = 0; i < 30 && !btn.disabled; i++) await sleep(50);
 
       let finished = false;
-      for (let i = 0; i < 720; i++) {
+      for (let i = 0; i < 1200; i++) {
         await sleep(250);
         if (!btn.disabled) { finished = true; break; }
       }
 
       if (!finished) {
         state.status = 'Chưa hoàn tất';
-        state.detail = 'Quá thời gian chờ. Hệ thống không tự lưu.';
+        state.detail = 'Hệ thống không tự lưu để đảm bảo an toàn.';
         toast('Tự động điền chưa kết thúc nên chưa lưu.', 'warn', 5000);
         return;
       }
 
       if (failed) {
         state.status = 'Có lỗi khi tự động điền';
-        state.detail = 'Hệ thống không tự lưu để tránh sai dữ liệu.';
+        state.detail = 'Hệ thống không tự lưu.';
         return;
       }
 
-      if (!success) {
-        // Nếu routine không dùng alert thành công, vẫn cho lưu sau khi nút đã chạy xong.
-        // Điều này tương thích với các routine dùng modal/toast riêng trong script gốc.
-        success = true;
+      await sleep(200);
+      const changed = snapshotForm() > before;
+
+      // Critical guard: if user cancelled a modal or nothing was actually filled,
+      // do NOT save. This prevents blank/incomplete records from being persisted.
+      if (!successAlert && !changed) {
+        state.status = 'Chưa có dữ liệu mới';
+        state.detail = 'Hệ thống không tự lưu để tránh hồ sơ trống.';
+        return;
       }
 
-      if (success) await autoSave();
+      await autoSave();
     } catch (e) {
       console.error(SIMPLE, e);
       state.status = 'Có lỗi';
-      state.detail = 'Không tự lưu hồ sơ.';
+      state.detail = 'Hệ thống không tự lưu hồ sơ.';
       toast('Có lỗi khi chạy tự động điền.', 'error', 5000);
     } finally {
       window.alert = originalAlert;
