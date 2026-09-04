@@ -8088,29 +8088,20 @@ async function autoM2KhamLamSang() {
 (function () {
   'use strict';
 
-  const SIMPLE = '[KSK SIMPLE UX]';
-  const ROOT_ID = 'ksk-simple-root';
-  const LEGACY_HIDDEN_CLASS = 'ksk-simple-legacy-hidden';
+  const SIMPLE = '[KSK COMPACT UX]';
+  const ROOT_ID = 'ksk-compact-root';
+  const LEGACY_HIDDEN_CLASS = 'ksk-compact-legacy-hidden';
   const LOGIN_RE = /\/account\/login(?:\/|$)/i;
 
   const state = {
     busy: false,
-    status: 'Sẵn sàng',
-    detail: 'Bấm “Tự động điền” để bắt đầu.',
-    lastContext: ''
+    lastContext: '',
+    lastMessage: ''
   };
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
   function norm(s) { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
   function isLoginPage() { return LOGIN_RE.test(location.pathname); }
-  function escapeHtml(s) {
-    return String(s ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
 
   function isVisible(el) {
     if (!el || !el.isConnected) return false;
@@ -8125,76 +8116,56 @@ async function autoM2KhamLamSang() {
     return el ? norm(el.innerText) : '';
   }
 
-  function detectSection() {
+  function detectContext() {
     const tab = getTabTitle();
     const body = norm(document.body?.innerText || '');
     if (body.includes('kết quả xét nghiệm máu')) return 'Cận lâm sàng';
-    if (tab.includes('hỏi bệnh và khám lâm sàng')) return 'Hỏi bệnh và khám lâm sàng';
-    if (tab.includes('đánh giá sức khỏe tâm thần')) return 'Đánh giá sức khỏe tâm thần';
+    if (tab.includes('hỏi bệnh và khám lâm sàng')) return 'Hỏi bệnh & khám';
+    if (tab.includes('đánh giá sức khỏe tâm thần')) return 'Đánh giá tâm thần';
     if (tab.includes('thông tin khám')) return 'Khám lâm sàng';
     if (body.includes('chưa phát hiện bất thường')) return 'Khám lâm sàng';
     if (body.includes('tiền sử')) return 'Tiền sử';
-    return 'Hồ sơ khám sức khỏe';
+    return 'Hồ sơ khám';
   }
 
-  // Engine buttons may be intentionally hidden by this UI, so DO NOT require visibility.
-  function findLegacyAutoButton() {
-    const els = [...document.querySelectorAll('[id^="medinet-auto-"], .medinet-toolbar-btn')]
-      .filter(el => !el.closest(`#${ROOT_ID}`));
-
+  function findEngineButton() {
     const tab = getTabTitle();
     const body = norm(document.body?.innerText || '');
     const url = location.href.toLowerCase();
 
-    const byId = id => document.getElementById(id);
-
     if (url.includes('nguoilaixe') || url.includes('kskdk_oto') || body.includes('người lái xe')) {
-      return byId('medinet-auto-m5m6') || els.find(el => norm(el.textContent).includes('m5/m6')) || null;
+      return document.getElementById('medinet-auto-m5m6');
     }
-
     if (
       tab.includes('tiền sử bệnh nhân dưới 18 tuổi') ||
       tab.includes('đánh giá sức khỏe tâm thần') ||
       tab.includes('thông tin khám bệnh nhân dưới 18 tuổi') ||
       body.includes('thông tin khám bệnh nhân dưới 18 tuổi')
     ) {
-      return byId('medinet-auto-m2') || null;
+      return document.getElementById('medinet-auto-m2');
     }
-
     if (tab.includes('hỏi bệnh và khám lâm sàng') || body.includes('d8.5.1') || body.includes('hầu như không')) {
-      return byId('medinet-auto-m4') || null;
+      return document.getElementById('medinet-auto-m4');
     }
-
-    return byId('medinet-auto-m3') || null;
+    return document.getElementById('medinet-auto-m3');
   }
 
   function findWarningButton() {
-    return document.getElementById('medinet-xem-canhbao') ||
-      [...document.querySelectorAll('button, [role="button"], .dx-button, a')]
-        .filter(el => !el.closest(`#${ROOT_ID}`))
-        .find(el => norm(el.innerText || el.textContent || '') === 'xem cảnh báo') || null;
+    return document.getElementById('medinet-xem-canhbao');
   }
 
   function looksLegacy(el) {
     if (!el || el.closest?.(`#${ROOT_ID}`)) return false;
     const id = norm(el.id || '');
     const cls = norm(typeof el.className === 'string' ? el.className : '');
-    const text = norm(el.innerText || el.textContent || el.value || '');
     if (id.startsWith('medinet-auto-') || id === 'medinet-xem-canhbao') return true;
     if (cls.includes('medinet-toolbar-btn')) return true;
-    return (
-      (text.includes('auto m2') || text.includes('auto m3') || text.includes('auto m4') ||
-       text.includes('auto m5') || text.includes('auto m6') || text.includes('auto m5/m6') ||
-       text === 'xem cảnh báo' || text.includes('debug d-code')) &&
-      ['BUTTON','A','INPUT'].includes(el.tagName)
-    );
+    return false;
   }
 
   function hideLegacyControls() {
-    document.querySelectorAll('button, [role="button"], .dx-button, a, input[type="button"], input[type="submit"], [id^="medinet-auto-"]')
-      .forEach(el => {
-        if (looksLegacy(el)) el.classList.add(LEGACY_HIDDEN_CLASS);
-      });
+    document.querySelectorAll('[id^="medinet-auto-"], #medinet-xem-canhbao, .medinet-toolbar-btn')
+      .forEach(el => el.classList.add(LEGACY_HIDDEN_CLASS));
   }
 
   function snapshotForm() {
@@ -8210,43 +8181,43 @@ async function autoM2KhamLamSang() {
   }
 
   function ensureStyles() {
-    if (document.getElementById('ksk-simple-style')) return;
+    if (document.getElementById('ksk-compact-style')) return;
     const s = document.createElement('style');
-    s.id = 'ksk-simple-style';
+    s.id = 'ksk-compact-style';
     s.textContent = `
       .${LEGACY_HIDDEN_CLASS}{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-      #${ROOT_ID}{position:fixed;right:18px;bottom:18px;width:244px;z-index:1000005;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#0f172a;background:rgba(255,255,255,.98);border:1px solid #dbe4ee;border-radius:16px;box-shadow:0 14px 36px rgba(15,23,42,.16);overflow:hidden;backdrop-filter:blur(10px)}
+      #${ROOT_ID}{position:fixed;right:18px;bottom:18px;z-index:1000005;font-family:"Segoe UI",Roboto,Arial,sans-serif;display:flex;align-items:center;gap:7px}
       #${ROOT_ID} *{box-sizing:border-box}
-      .ksks-head{padding:13px 14px 10px;border-bottom:1px solid #eef2f7}
-      .ksks-title{font-size:13px;font-weight:800;letter-spacing:.2px}
-      .ksks-context{margin-top:4px;color:#64748b;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .ksks-body{padding:12px}
-      .ksks-run{width:100%;min-height:48px;border:0;border-radius:11px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 7px 16px rgba(37,99,235,.20)}
-      .ksks-run:hover{filter:brightness(.98)}
-      .ksks-run:disabled{opacity:.62;cursor:progress}
-      .ksks-status{margin-top:9px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}
-      .ksks-status strong{display:block;font-size:12.3px}
-      .ksks-status span{display:block;margin-top:3px;color:#64748b;font-size:11.3px;line-height:1.35}
-      .ksks-warning{margin-top:8px;width:100%;border:1px solid #dbe4ee;background:#fff;color:#475569;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer}
-      #ksk-simple-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:10000030;padding:10px 15px;border-radius:10px;color:#fff;background:#15803d;box-shadow:0 10px 28px rgba(15,23,42,.22);font:600 12.5px/1.4 "Segoe UI",Roboto,Arial,sans-serif;opacity:0;transition:.2s;pointer-events:none}
-      #ksk-simple-toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
-      #ksk-simple-toast.warn{background:#b45309}
-      #ksk-simple-toast.error{background:#b91c1c}
+      .kskc-main{height:38px;padding:0 14px;border:0;border-radius:999px;background:#2563eb;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:0 5px 14px rgba(15,23,42,.18);display:flex;align-items:center;gap:7px;white-space:nowrap;transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}
+      .kskc-main:hover{filter:brightness(.98);box-shadow:0 7px 18px rgba(15,23,42,.22)}
+      .kskc-main:active{transform:translateY(1px)}
+      .kskc-main:disabled{opacity:.72;cursor:progress}
+      .kskc-warning{width:34px;height:34px;border:1px solid #e2e8f0;border-radius:50%;background:#fff;color:#b45309;cursor:pointer;box-shadow:0 4px 12px rgba(15,23,42,.14);font-size:15px;display:flex;align-items:center;justify-content:center;padding:0}
+      .kskc-warning:hover{background:#fff7ed}
+      .kskc-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.14)}
+      .kskc-spinner{width:12px;height:12px;border:2px solid rgba(255,255,255,.42);border-top-color:#fff;border-radius:50%;animation:kskc-spin .7s linear infinite}
+      @keyframes kskc-spin{to{transform:rotate(360deg)}}
+      #ksk-compact-toast{position:fixed;right:18px;bottom:66px;z-index:10000030;max-width:320px;padding:10px 13px;border-radius:10px;color:#fff;background:#15803d;box-shadow:0 8px 24px rgba(15,23,42,.20);font:600 12.5px/1.4 "Segoe UI",Roboto,Arial,sans-serif;opacity:0;transform:translateY(6px);transition:.18s;pointer-events:none}
+      #ksk-compact-toast.show{opacity:1;transform:translateY(0)}
+      #ksk-compact-toast.warn{background:#b45309}
+      #ksk-compact-toast.error{background:#b91c1c}
+      @media (max-width: 900px){#${ROOT_ID}{right:10px;bottom:10px}.kskc-main{height:36px;padding:0 12px;font-size:12px}#ksk-compact-toast{right:10px;bottom:56px;max-width:min(300px,calc(100vw - 20px))}}
     `;
     document.head.appendChild(s);
   }
 
-  function toast(msg, type='ok', ms=3000) {
-    let el = document.getElementById('ksk-simple-toast');
+  function toast(msg, type='ok', ms=3200) {
+    let el = document.getElementById('ksk-compact-toast');
     if (!el) {
       el = document.createElement('div');
-      el.id = 'ksk-simple-toast';
+      el.id = 'ksk-compact-toast';
       document.body.appendChild(el);
     }
     el.className = type === 'warn' ? 'warn' : type === 'error' ? 'error' : '';
     el.textContent = msg;
     requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => el.classList.remove('show'), ms);
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => el.classList.remove('show'), ms);
   }
 
   function render() {
@@ -8258,31 +8229,24 @@ async function autoM2KhamLamSang() {
     ensureStyles();
     let root = document.getElementById(ROOT_ID);
     if (!root) {
-      root = document.createElement('aside');
+      root = document.createElement('div');
       root.id = ROOT_ID;
       document.body.appendChild(root);
     }
 
-    const section = detectSection();
-    const autoBtn = findLegacyAutoButton();
-    const warningBtn = findWarningButton();
+    const engine = findEngineButton();
+    const warning = findWarningButton();
+    const context = detectContext();
 
     root.innerHTML = `
-      <div class="ksks-head">
-        <div class="ksks-title">KSK AUTO</div>
-        <div class="ksks-context">${escapeHtml(section)}</div>
-      </div>
-      <div class="ksks-body">
-        <button id="ksks-run" class="ksks-run" ${state.busy || !autoBtn ? 'disabled' : ''}>${state.busy ? '⏳ ĐANG XỬ LÝ…' : '⚡ TỰ ĐỘNG ĐIỀN'}</button>
-        <div class="ksks-status"><strong>${escapeHtml(state.status)}</strong><span>${escapeHtml(state.detail)}</span></div>
-        ${warningBtn ? '<button id="ksks-warning" class="ksks-warning">Xem cảnh báo</button>' : ''}
-      </div>`;
+      <button id="kskc-run" class="kskc-main" ${state.busy || !engine ? 'disabled' : ''} title="${context}">
+        ${state.busy ? '<span class="kskc-spinner"></span><span>Đang xử lý…</span>' : '<span class="kskc-dot"></span><span>Tự động điền</span>'}
+      </button>
+      ${warning ? '<button id="kskc-warning" class="kskc-warning" title="Xem cảnh báo gần nhất">!</button>' : ''}
+    `;
 
-    root.querySelector('#ksks-run')?.addEventListener('click', runAuto);
-    root.querySelector('#ksks-warning')?.addEventListener('click', () => {
-      const btn = findWarningButton();
-      if (btn) btn.click();
-    });
+    root.querySelector('#kskc-run')?.addEventListener('click', runAuto);
+    root.querySelector('#kskc-warning')?.addEventListener('click', () => findWarningButton()?.click());
   }
 
   function getSaveButtons() {
@@ -8296,46 +8260,42 @@ async function autoM2KhamLamSang() {
   async function autoSave() {
     await sleep(250);
     const saves = [...new Set(getSaveButtons())];
+
     if (saves.length !== 1) {
-      state.status = 'Đã điền xong';
-      state.detail = saves.length === 0 ? 'Vui lòng bấm Lưu trên hồ sơ.' : 'Chưa tự lưu để tránh bấm nhầm.';
-      toast('Đã điền xong nhưng chưa thể tự lưu an toàn.', 'warn', 4500);
+      toast(
+        saves.length === 0
+          ? 'Đã điền xong. Chưa tìm thấy nút Lưu trên trang này.'
+          : 'Đã điền xong. Có nhiều nút Lưu nên hệ thống chưa tự bấm.',
+        'warn',
+        4600
+      );
       return false;
     }
 
-    state.status = 'Đang lưu…';
-    state.detail = 'Vui lòng chờ trong giây lát.';
-    render();
+    toast('Đang lưu hồ sơ…', 'ok', 1800);
     saves[0].click();
-
     await sleep(1000);
+
     const body = norm(document.body?.innerText || '');
     if (body.includes('lưu thất bại') || body.includes('không thể lưu') || body.includes('lỗi máy chủ')) {
-      state.status = 'Lưu chưa thành công';
-      state.detail = 'Vui lòng kiểm tra lại.';
-      toast('Đã điền nhưng lưu chưa thành công.', 'error', 5000);
+      toast('Đã điền nhưng lưu chưa thành công. Vui lòng kiểm tra lại.', 'error', 5000);
       return false;
     }
 
-    state.status = 'Đã hoàn tất';
-    state.detail = 'Đã tự động điền và gửi lệnh Lưu.';
-    toast('✓ Đã tự động điền và lưu hồ sơ.');
+    toast('✓ Đã tự động điền và lưu hồ sơ.', 'ok', 3400);
     return true;
   }
 
   async function runAuto() {
     if (state.busy) return;
-    const btn = findLegacyAutoButton();
+    const btn = findEngineButton();
+
     if (!btn) {
-      state.status = 'Chưa sẵn sàng';
-      state.detail = 'Trang này chưa hỗ trợ tự động điền.';
-      render();
+      toast('Trang này chưa hỗ trợ tự động điền.', 'warn', 3600);
       return;
     }
 
     state.busy = true;
-    state.status = 'Đang xử lý…';
-    state.detail = 'Vui lòng chờ.';
     render();
 
     const before = snapshotForm();
@@ -8362,39 +8322,35 @@ async function autoM2KhamLamSang() {
       let finished = false;
       for (let i = 0; i < 1200; i++) {
         await sleep(250);
-        if (!btn.disabled) { finished = true; break; }
+        if (!btn.disabled) {
+          finished = true;
+          break;
+        }
       }
 
       if (!finished) {
-        state.status = 'Chưa hoàn tất';
-        state.detail = 'Hệ thống không tự lưu để đảm bảo an toàn.';
-        toast('Tự động điền chưa kết thúc nên chưa lưu.', 'warn', 5000);
+        toast('Tự động điền chưa kết thúc nên hệ thống không tự lưu.', 'warn', 5000);
         return;
       }
 
       if (failed) {
-        state.status = 'Có lỗi khi tự động điền';
-        state.detail = 'Hệ thống không tự lưu.';
+        toast('Có lỗi khi tự động điền. Hồ sơ chưa được tự lưu.', 'error', 5000);
         return;
       }
 
       await sleep(200);
       const changed = snapshotForm() > before;
 
-      // Critical guard: if user cancelled a modal or nothing was actually filled,
-      // do NOT save. This prevents blank/incomplete records from being persisted.
       if (!successAlert && !changed) {
-        state.status = 'Chưa có dữ liệu mới';
-        state.detail = 'Hệ thống không tự lưu để tránh hồ sơ trống.';
+        toast('Không có dữ liệu mới. Hệ thống không lưu để tránh hồ sơ trống.', 'warn', 5000);
         return;
       }
 
       await autoSave();
+
     } catch (e) {
       console.error(SIMPLE, e);
-      state.status = 'Có lỗi';
-      state.detail = 'Hệ thống không tự lưu hồ sơ.';
-      toast('Có lỗi khi chạy tự động điền.', 'error', 5000);
+      toast('Có lỗi khi chạy tự động điền. Hồ sơ chưa được tự lưu.', 'error', 5000);
     } finally {
       window.alert = originalAlert;
       state.busy = false;
@@ -8407,12 +8363,11 @@ async function autoM2KhamLamSang() {
       document.getElementById(ROOT_ID)?.remove();
       return;
     }
+
     hideLegacyControls();
-    const ctx = detectSection();
-    if (!state.busy && ctx !== state.lastContext) {
+    const ctx = detectContext();
+    if (ctx !== state.lastContext && !state.busy) {
       state.lastContext = ctx;
-      state.status = 'Sẵn sàng';
-      state.detail = 'Bấm “Tự động điền” để bắt đầu.';
       render();
     }
   }
@@ -8422,7 +8377,10 @@ async function autoM2KhamLamSang() {
     const obs = new MutationObserver(sync);
     obs.observe(document.documentElement, { childList: true, subtree: true });
     setInterval(sync, 1000);
-    setTimeout(() => { sync(); render(); }, 350);
+    setTimeout(() => {
+      hideLegacyControls();
+      render();
+    }, 350);
     console.info(SIMPLE, 'loaded');
   }
 
