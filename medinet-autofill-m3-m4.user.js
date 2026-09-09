@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.30
+// @version      7.34
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -5575,7 +5575,7 @@ async function autoM2KhamLamSang() {
                     target
                 );
             }
-        
+
         );
     }
 
@@ -5787,6 +5787,217 @@ async function autoM2KhamLamSang() {
     }
 
 
+    // -----------------------------------------------------------
+    // GLUCOSE MÁU - portal mới hiển thị "Đường máu bất kỳ (mmol/L)"
+    // và dùng hnumberbox/dx-number-box. Vẫn hỗ trợ các nhãn cũ.
+    // Nếu nhãn chỉ còn "Glucose", phải phân biệt với Glucose niệu:
+    // Glucose máu nằm trước cụm nước tiểu (Tỉ trọng / pH).
+    // -----------------------------------------------------------
+    function findBloodGlucoseLabelElements(scope) {
+
+        for (const alias of ['Đường máu bất kỳ', 'Đường máu', 'Glucose máu', 'Glucose bất kỳ']) {
+
+            const exact =
+                findLabelElements(alias).filter(
+                    el => isElInScope(el, scope)
+                );
+
+            if (exact.length) {
+                return exact;
+            }
+        }
+
+        const glucoseLabels =
+            findLabelElements('Glucose').filter(
+                el => isElInScope(el, scope)
+            );
+
+        if (!glucoseLabels.length) {
+            return [];
+        }
+
+        const urineBoundary =
+            [
+                ...findLabelElements('Tỉ trọng'),
+                ...findLabelElements('pH')
+            ].filter(
+                el => isElInScope(el, scope)
+            ).sort(
+                (a, b) =>
+                    a === b ? 0 :
+                    (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)
+            )[0] || null;
+
+        if (urineBoundary) {
+
+            const beforeUrine =
+                glucoseLabels.filter(
+                    el =>
+                        !!(
+                            el.compareDocumentPosition(urineBoundary) &
+                            Node.DOCUMENT_POSITION_FOLLOWING
+                        )
+                );
+
+            if (beforeUrine.length) {
+                return [beforeUrine[0]];
+            }
+        }
+
+        // Dự phòng: trên form hiện tại Glucose máu đứng trước
+        // Glucose niệu, nên lấy occurrence đầu tiên.
+        return [glucoseLabels[0]];
+    }
+
+
+    async function setBloodGlucoseValue(
+        input,
+        rawValue
+    ) {
+
+        if (!input) {
+            return false;
+        }
+
+        const val =
+            (rawValue === undefined || rawValue === null)
+                ? ''
+                : String(rawValue).trim();
+
+        if (!val) {
+            return false;
+        }
+
+        const rounded =
+            formatRounded1(val);
+
+        const numericValue =
+            parseFloat(
+                String(rounded).replace(',', '.')
+            );
+
+        if (isNaN(numericValue)) {
+            return false;
+        }
+
+        const displayVal =
+            String(rounded).replace('.', ',');
+
+        const numberBoxEl =
+            input.closest('.dx-numberbox') ||
+            input.closest('dx-number-box') ||
+            input.closest('hnumberbox');
+
+        let instance = null;
+
+        if (
+            numberBoxEl &&
+            window.DevExpress &&
+            DevExpress.ui &&
+            DevExpress.ui.dxNumberBox &&
+            typeof DevExpress.ui.dxNumberBox.getInstance === 'function'
+        ) {
+            try {
+                instance = DevExpress.ui.dxNumberBox.getInstance(numberBoxEl);
+            } catch (e) {}
+        }
+
+        if (!instance && numberBoxEl && window.jQuery) {
+            try {
+                const jq = window.jQuery(numberBoxEl);
+                if (jq && typeof jq.dxNumberBox === 'function') {
+                    instance = jq.dxNumberBox('instance');
+                }
+            } catch (e) {}
+        }
+
+        // 1) Ưu tiên API NumberBox nếu portal expose instance.
+        if (instance && typeof instance.option === 'function') {
+            try {
+                instance.option('value', numericValue);
+                if (typeof instance.blur === 'function') {
+                    instance.blur();
+                }
+                await sleep(50);
+
+                const committed =
+                    Number(instance.option('value'));
+
+                if (!isNaN(committed) && Math.abs(committed - numericValue) < 0.000001) {
+                    return true;
+                }
+            } catch (e) {
+                warn('Glucose máu: set dxNumberBox instance thất bại:', e);
+            }
+        }
+
+        // 2) Fallback giống thao tác người dùng gõ thật.
+        input.focus();
+        try { input.select(); } catch (e) {}
+
+        nativeInputValueSetter.call(input, '');
+        input.dispatchEvent(
+            new InputEvent(
+                'input',
+                {
+                    bubbles: true,
+                    inputType: 'deleteContentBackward',
+                    data: null
+                }
+            )
+        );
+
+        nativeInputValueSetter.call(input, displayVal);
+        input.dispatchEvent(
+            new InputEvent(
+                'input',
+                {
+                    bubbles: true,
+                    inputType: 'insertText',
+                    data: displayVal
+                }
+            )
+        );
+
+        input.dispatchEvent(
+            new KeyboardEvent(
+                'keyup',
+                {
+                    bubbles: true,
+                    key: 'Enter',
+                    code: 'Enter'
+                }
+            )
+        );
+
+        input.dispatchEvent(
+            new Event('change', { bubbles: true })
+        );
+
+        input.blur();
+        input.dispatchEvent(
+            new FocusEvent('focusout', { bubbles: true })
+        );
+
+        await sleep(80);
+
+        // Hidden input đi kèm NumberBox - chỉ đồng bộ sau khi ô
+        // hiển thị đã nhận giá trị, không dùng làm cách nhập chính.
+        if (numberBoxEl) {
+            const hidden =
+                numberBoxEl.querySelector('input[type="hidden"]');
+            if (hidden) {
+                hidden.value = String(numericValue);
+                hidden.dispatchEvent(
+                    new Event('change', { bubbles: true })
+                );
+            }
+        }
+
+        return (input.value || '').trim() !== '';
+    }
+
+
     async function setNumberBoxValue(
         input,
         rawValue
@@ -5812,16 +6023,146 @@ async function autoM2KhamLamSang() {
                 val
             );
 
+        const numericValue =
+            parseFloat(
+                String(rounded).replace(
+                    ',',
+                    '.'
+                )
+            );
+
         const displayVal =
             rounded.replace(
                 '.',
                 ','
             );
 
+        // -----------------------------------------------------
+        // PORTAL MỚI: hnumberbox > dx-number-box
+        //
+        // Glucose và một số trường số đã đổi sang DevExtreme
+        // NumberBox. Nếu chỉ sửa trực tiếp input.value thì phần
+        // chữ có thể hiện đúng nhưng model nội bộ Angular chưa
+        // nhận giá trị. Vì vậy ưu tiên set qua instance thật của
+        // dxNumberBox, sau đó vẫn bắn event để tương thích form cũ.
+        // -----------------------------------------------------
+
+        const numberBoxEl =
+            input.closest(
+                '.dx-numberbox'
+            );
+
+        let instance =
+            null;
+
+        if (
+            numberBoxEl &&
+            window.DevExpress &&
+            DevExpress.ui &&
+            DevExpress.ui.dxNumberBox &&
+            typeof DevExpress.ui.dxNumberBox.getInstance === 'function'
+        ) {
+
+            try {
+
+                instance =
+                    DevExpress.ui.dxNumberBox.getInstance(
+                        numberBoxEl
+                    );
+
+            } catch (e) {
+
+                warn(
+                    'Không lấy được dxNumberBox instance:',
+                    e
+                );
+            }
+        }
+
+        // Dự phòng cho các bản DevExtreme expose widget qua jQuery
+        if (
+            !instance &&
+            numberBoxEl &&
+            window.jQuery
+        ) {
+
+            try {
+
+                const jq =
+                    window.jQuery(
+                        numberBoxEl
+                    );
+
+                if (
+                    jq &&
+                    typeof jq.dxNumberBox === 'function'
+                ) {
+
+                    instance =
+                        jq.dxNumberBox(
+                            'instance'
+                        );
+                }
+
+            } catch (e) {
+
+                // Không sao - sẽ fallback xuống cách cũ bên dưới.
+            }
+        }
+
+        if (
+            instance &&
+            typeof instance.option === 'function' &&
+            !isNaN(numericValue)
+        ) {
+
+            try {
+
+                instance.option(
+                    'value',
+                    numericValue
+                );
+
+                await sleep(
+                    30
+                );
+
+            } catch (e) {
+
+                warn(
+                    'Set dxNumberBox thất bại, chuyển sang fallback:',
+                    e
+                );
+            }
+        }
+
+        // Luôn bắn chuỗi event để Angular nhận thay đổi và để
+        // tương thích với các NumberBox/TextBox kiểu cũ.
         await dispatchInputValue(
             input,
             displayVal
         );
+
+        // Nếu có instance, ép đồng bộ thêm một lần sau event vì
+        // portal có thể tự format lại giá trị khi blur.
+        if (
+            instance &&
+            typeof instance.option === 'function' &&
+            !isNaN(numericValue)
+        ) {
+
+            try {
+
+                instance.option(
+                    'value',
+                    numericValue
+                );
+
+            } catch (e) {
+
+                // Không chặn luồng autofill nếu portal đổi API.
+            }
+        }
 
         return true;
     }
@@ -5870,17 +6211,38 @@ async function autoM2KhamLamSang() {
                 val
             );
 
+        // -----------------------------------------------------
+        // PORTAL MỚI: ô định tính có thể đã đổi thành hnumberbox
+        // / dx-number-box nhưng input bên trong vẫn là type=text.
+        //
+        // Với kiểu này KHÔNG được thử gõ "Negative" trước:
+        // input DOM có thể tạm giữ chữ nên code tưởng đã thành công,
+        // nhưng DevExtreme NumberBox không nhận vào model và sau đó
+        // tự xóa -> nhìn như Glucose không được điền.
+        //
+        // Nếu là spinbutton hoặc nằm trong dx-numberbox => đây là
+        // Ô SỐ, điền số trực tiếp, kể cả giá trị 0.
+        // -----------------------------------------------------
+        const isNumericNumberBox =
+            inputInfo.role === 'spinbutton' ||
+            !!inputInfo.element.closest('.dx-numberbox') ||
+            !!inputInfo.element.closest('dx-number-box') ||
+            !!inputInfo.element.closest('hnumberbox');
+
+        if (isNumericNumberBox) {
+
+            return await setNumberBoxValue(
+                inputInfo.element,
+                val
+            );
+        }
+
+        // Chỉ các ô kiểu combobox/text định tính mới dùng Negative
         if (
             !isNaN(n) &&
             n === 0
         ) {
 
-            // Thử điền chữ "Negative" trước, KHÔNG cần biết
-            // trước ô này có chấp nhận chữ hay không (role có
-            // thể đổi bất cứ lúc nào). Điền xong tự đọc lại -
-            // nếu ô KHÔNG nhận chữ (ô số thuần, chỉ nhận số),
-            // giá trị "Negative" sẽ không "dính" -> tự động
-            // chuyển sang điền số "0" thay thế.
             await dispatchInputValue(
                 inputInfo.element,
                 'Negative'
@@ -5902,7 +6264,6 @@ async function autoM2KhamLamSang() {
                 return true;
             }
 
-            // Ô không nhận chữ -> điền số 0 thay thế
             return await setNumberBoxValue(
                 inputInfo.element,
                 '0'
@@ -6871,15 +7232,19 @@ async function autoM2KhamLamSang() {
         ) {
 
             const labelEls =
-                findLabelElements(
-                    label
-                ).filter(
-                    el =>
-                        isElInScope(
-                            el,
-                            scope
-                        )
-                );
+                column === 'Glucose'
+                    ? findBloodGlucoseLabelElements(
+                        scope
+                    )
+                    : findLabelElements(
+                        label
+                    ).filter(
+                        el =>
+                            isElInScope(
+                                el,
+                                scope
+                            )
+                    );
 
             if (
                 !labelEls.length
@@ -6990,6 +7355,15 @@ async function autoM2KhamLamSang() {
 
                         await setQualitativeFieldValue(
                             inputInfo,
+                            valueToFill
+                        );
+
+                    } else if (
+                        column === 'Glucose'
+                    ) {
+
+                        await setBloodGlucoseValue(
+                            inputInfo.element,
                             valueToFill
                         );
 
