@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.42
+// @version      7.43
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -2730,65 +2730,23 @@ async function autoM2KhamLamSang() {
         durationMs
     ) {
 
-        // AUTO hợp nhất không dùng toast giữa màn hình.
+        const normalized = normalizeAutoMessageModel(message);
+        const parsed = parseAutoNoticeMessage(normalized, 'Thông báo');
+
         if (
             typeof unifiedAutoRuntime !== 'undefined' &&
             unifiedAutoRuntime.running
         ) {
-            unifiedAutoRuntime.lastMessage =
-                normalizeAutoMessageModel(message);
+            unifiedAutoRuntime.lastMessage = normalized;
+            showRunningSpeechBubble(normalized);
             return;
         }
 
-        ensureModalStyles();
-
-        const toast =
-            document.createElement(
-                'div'
-            );
-
-        toast.className =
-            'mnm-toast';
-
-        toast.textContent =
-            message;
-
-        document.body.appendChild(
-            toast
-        );
-
-        requestAnimationFrame(
-            () => {
-
-                toast.classList.add(
-                    'mnm-toast-show'
-                );
-            }
-        );
-
-        setTimeout(
-            () => {
-
-                toast.classList.remove(
-                    'mnm-toast-show'
-                );
-
-                setTimeout(
-                    () => {
-
-                        if (
-                            toast.parentNode
-                        ) {
-
-                            toast.parentNode.removeChild(
-                                toast
-                            );
-                        }
-                    },
-                    300
-                );
-            },
-            durationMs || 3000
+        showAutoDockPanel(
+            parsed.title,
+            renderSpeechBodyHtml(parsed.body || parsed.firstLine),
+            parsed.type,
+            durationMs || (parsed.type === 'error' ? 9000 : 4200)
         );
     }
 
@@ -8135,14 +8093,13 @@ async function autoM2KhamLamSang() {
             findings.length
         ) {
 
-            await infoModal(
+            showAutoDockPanel(
                 `⚠️ ${tenBenhNhan} - Có kết quả bất thường`,
                 renderFindingsHtml(
                     findings
                 ) +
-                '<div class="mnm-note">💡 Bấm nút "📋 XEM CẢNH BÁO" ' +
-                'bất cứ lúc nào để xem lại, không cần tìm lại.</div>',
-                'mnm-warn'
+                '<div class="mnm-note">💡 Bấm dấu <b>!</b> trên nút AUTO để xem lại báo cáo bất cứ lúc nào.</div>',
+                'warn'
             );
 
         } else {
@@ -9768,6 +9725,209 @@ async function autoM2KhamLamSang() {
         document.head.appendChild(style);
     }
 
+
+    function ensureUnifiedAutoSpeechBubbleStyles() {
+
+        if (
+            document.getElementById(
+                'medinet-auto-speech-style'
+            )
+        ) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-speech-style';
+        style.textContent = `
+            #medinet-auto-dock-panel {
+                position: fixed !important;
+                right: 84px !important;
+                bottom: 92px !important;
+                width: min(350px, calc(100vw - 116px)) !important;
+                max-height: min(58vh, 480px) !important;
+                overflow: auto !important;
+                border-radius: 18px !important;
+                background: linear-gradient(180deg, rgba(255,255,255,.985), rgba(248,250,252,.985)) !important;
+                color: #111827 !important;
+                border: 3px solid #111827 !important;
+                box-shadow: 0 18px 38px rgba(15,23,42,.26), 0 6px 0 rgba(17,24,39,.10) !important;
+                transform: translateY(8px) scale(.98) !important;
+                opacity: 0;
+                z-index: 9999998 !important;
+                isolation: isolate;
+                font-family: 'Segoe UI', Roboto, Arial, sans-serif !important;
+            }
+            #medinet-auto-dock-panel.madp-show {
+                opacity: 1 !important;
+                transform: translateY(0) scale(1) !important;
+            }
+            #medinet-auto-dock-panel::after {
+                content: '' !important;
+                position: absolute !important;
+                right: 18px !important;
+                bottom: -12px !important;
+                width: 18px !important;
+                height: 18px !important;
+                background: #ffffff !important;
+                border-right: 3px solid #111827 !important;
+                border-bottom: 3px solid #111827 !important;
+                transform: rotate(45deg) !important;
+            }
+            #medinet-auto-dock-panel .madp-head {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 11px 14px 8px;
+                border-bottom: 1px dashed rgba(17,24,39,.16);
+                background: transparent !important;
+                position: sticky;
+                top: 0;
+                z-index: 2;
+            }
+            #medinet-auto-dock-panel .madp-pulse {
+                width: 10px !important;
+                height: 10px !important;
+                border-radius: 50% !important;
+                background: #38bdf8 !important;
+                box-shadow: 0 0 0 3px rgba(56,189,248,.16), 0 0 10px rgba(56,189,248,.45) !important;
+                flex: none;
+            }
+            #medinet-auto-dock-panel.madp-ok .madp-pulse,
+            #medinet-auto-dock-panel.madp-info .madp-pulse { background:#38bdf8 !important; box-shadow: 0 0 0 3px rgba(56,189,248,.16), 0 0 10px rgba(56,189,248,.45) !important; }
+            #medinet-auto-dock-panel.madp-warn .madp-pulse { background:#f59e0b !important; box-shadow:0 0 0 3px rgba(245,158,11,.18),0 0 10px rgba(245,158,11,.48) !important; }
+            #medinet-auto-dock-panel.madp-error .madp-pulse { background:#ef4444 !important; box-shadow:0 0 0 3px rgba(239,68,68,.18),0 0 10px rgba(239,68,68,.48) !important; }
+            #medinet-auto-dock-panel .madp-title {
+                flex:1;
+                color:#0f172a !important;
+                font-size:14px !important;
+                font-weight:900 !important;
+                letter-spacing:.1px;
+            }
+            #medinet-auto-dock-panel .madp-close {
+                width: 26px !important;
+                height: 26px !important;
+                border-radius: 999px !important;
+                border: 2px solid #111827 !important;
+                background: #ffffff !important;
+                color: #111827 !important;
+                font-size: 17px !important;
+                cursor: pointer;
+                line-height: 1;
+                font-weight: 900;
+            }
+            #medinet-auto-dock-panel .madp-body {
+                padding: 10px 14px 14px !important;
+                color:#1f2937 !important;
+                font-size:13px !important;
+                line-height:1.52 !important;
+            }
+            #medinet-auto-dock-panel .madp-body * { color: inherit !important; }
+            #medinet-auto-dock-panel .madp-speech-line {
+                display:block;
+                margin: 0 0 4px;
+            }
+            #medinet-auto-dock-panel .madp-speech-line:last-child { margin-bottom: 0; }
+            #medinet-auto-dock-panel .madp-running-note {
+                margin-top:8px;
+                padding:8px 10px;
+                border-radius:12px;
+                border:1px dashed rgba(14,116,144,.32);
+                background:rgba(224,242,254,.65);
+                color:#0f172a !important;
+                font-size:12.5px;
+                font-weight:700;
+            }
+            #medinet-auto-dock-panel.madp-warn {
+                background: linear-gradient(180deg, rgba(255,251,235,.985), rgba(255,247,237,.985)) !important;
+            }
+            #medinet-auto-dock-panel.madp-error {
+                background: linear-gradient(180deg, rgba(254,242,242,.985), rgba(255,241,242,.985)) !important;
+            }
+            #medinet-auto-dock-panel .mnm-patient-card { background:rgba(255,255,255,.72)!important;border:1px solid rgba(15,23,42,.12)!important; }
+            #medinet-auto-dock-panel .mnm-note { background:rgba(255,255,255,.78)!important;color:#92400e!important;border-color:rgba(217,119,6,.25)!important; }
+            .mnm-toast, #medinet-auto-notice {
+                display:none !important;
+            }
+            @media (max-width:640px) {
+                #medinet-auto-dock-panel {
+                    right: 68px !important;
+                    bottom: 84px !important;
+                    width: min(290px, calc(100vw - 82px)) !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value || '');
+        return div.innerHTML;
+    }
+
+    function renderSpeechBodyHtml(text, extraHtml) {
+        const safe = String(text || '')
+            .replace(/\r/g, '')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => `<span class="madp-speech-line">${escapeHtml(line)}</span>`)
+            .join('');
+        return (
+            '<div class="madp-speech">' +
+            (safe || '<span class="madp-speech-line">…</span>') +
+            (extraHtml || '') +
+            '</div>'
+        );
+    }
+
+    function parseAutoNoticeMessage(message, fallbackTitle) {
+        const raw = String(message || '').trim();
+        const firstLine = raw.split('\n')[0] || String(fallbackTitle || 'Thông báo');
+        const lower = norm(raw);
+        let type = 'ok';
+        if (firstLine.includes('❌') || lower.includes('lỗi')) {
+            type = 'error';
+        } else if (
+            firstLine.includes('⚠️') ||
+            lower.includes('cảnh báo') ||
+            lower.includes('chưa hỗ trợ') ||
+            lower.includes('không tìm thấy') ||
+            lower.includes('chưa lưu')
+        ) {
+            type = 'warn';
+        } else if (firstLine.includes('⏳') || lower.includes('đang')) {
+            type = 'info';
+        }
+        const title = firstLine.replace(/[✅⚠️❌📋🚀⏳💾]/g, '').trim() || String(fallbackTitle || 'Thông báo');
+        const body = raw.split('\n').slice(1).join('\n').replace(/^\s+|\s+$/g, '').replace(/Vui Lòng/gi, 'Vui lòng');
+        return {
+            raw,
+            firstLine,
+            lower,
+            type,
+            title,
+            body: body || ''
+        };
+    }
+
+    function showRunningSpeechBubble(message) {
+        ensureUnifiedAutoSpeechBubbleStyles();
+        const model = unifiedAutoRuntime.model || getCurrentMedinetModel() || 'AUTO';
+        const parsed = parseAutoNoticeMessage(message || (`⏳ ${model} · Đang AUTO`), `${model} · Đang AUTO`);
+        const title = parsed.title || `${model} · Đang AUTO`;
+        const bodyText = parsed.body || parsed.firstLine || 'Đang xử lý, vui lòng chờ...';
+        showAutoDockPanel(
+            title,
+            renderSpeechBodyHtml(
+                bodyText,
+                '<div class="madp-running-note">⏳ Đang chạy · Vui lòng chờ · Không chuyển tab.</div>'
+            ),
+            'info',
+            0
+        );
+    }
+
     const unifiedAutoRuntime = {
         running: false,
         model: '',
@@ -9807,6 +9967,7 @@ async function autoM2KhamLamSang() {
     function showAutoDockPanel(title, bodyHtml, type = 'info', autoCloseMs = 0) {
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoV742Styles();
+        ensureUnifiedAutoSpeechBubbleStyles();
         closeAutoDockPanel();
 
         const panel = document.createElement('div');
@@ -9840,252 +10001,35 @@ async function autoM2KhamLamSang() {
     function autoAlert(message) {
 
         ensureUnifiedAutoStyles();
+        ensureUnifiedAutoSpeechBubbleStyles();
 
         message = normalizeAutoMessageModel(
             message
         );
 
-        // Khi đang chạy từ nút AUTO hợp nhất, giữ thông báo nội bộ
-        // lại để cuối quy trình chỉ hiện 1 thẻ kết quả + nhắc lưu rõ ràng.
         if (unifiedAutoRuntime.running) {
             unifiedAutoRuntime.lastMessage =
                 String(message || '');
+            showRunningSpeechBubble(message);
             return;
         }
 
-        const raw =
-            String(message || '').trim();
+        const parsed = parseAutoNoticeMessage(message, 'Thông báo');
+        const fallbackBody =
+            parsed.type === 'ok'
+                ? 'Đã xử lý xong. Vui lòng kiểm tra trước khi lưu.'
+                : parsed.type === 'warn'
+                    ? 'Vui lòng kiểm tra lại dữ liệu.'
+                    : 'AUTO gặp lỗi. Vui lòng kiểm tra lại.';
 
-        const firstLine =
-            raw.split('\n')[0] || 'Thông báo';
-
-        const lower =
-            norm(raw);
-
-        let type = 'ok';
-        let icon = '✓';
-
-        if (
-            firstLine.includes('❌') ||
-            lower.includes('lỗi')
-        ) {
-            type = 'error';
-            icon = '×';
-        } else if (
-            firstLine.includes('⚠️') ||
-            lower.includes('cảnh báo') ||
-            lower.includes('chưa hỗ trợ') ||
-            lower.includes('không tìm thấy')
-        ) {
-            type = 'warn';
-            icon = '!';
-        }
-
-        const title =
-            firstLine
-                .replace(/[✅⚠️❌📋🚀]/g, '')
-                .trim() ||
-            (
-                type === 'ok'
-                    ? 'AUTO hoàn tất'
-                    : type === 'warn'
-                        ? 'Cần kiểm tra'
-                        : 'AUTO gặp lỗi'
-            );
-
-        const body =
-            raw
-                .split('\n')
-                .slice(1)
-                .join('\n')
-                .replace(/^\s+|\s+$/g, '')
-                .replace(/Vui Lòng/gi, 'Vui lòng');
-
-        let notice =
-            document.getElementById(
-                'medinet-auto-notice'
-            );
-
-        if (notice) {
-            notice.remove();
-        }
-
-        notice =
-            document.createElement(
-                'div'
-            );
-
-        notice.id =
-            'medinet-auto-notice';
-
-        notice.className =
-            type === 'warn'
-                ? 'man-warn'
-                : type === 'error'
-                    ? 'man-error'
-                    : 'man-ok';
-
-        const accent =
-            document.createElement(
-                'div'
-            );
-
-        accent.className =
-            'man-accent';
-
-        const wrap =
-            document.createElement(
-                'div'
-            );
-
-        wrap.className =
-            'man-wrap';
-
-        const iconEl =
-            document.createElement(
-                'div'
-            );
-
-        iconEl.className =
-            'man-icon';
-
-        iconEl.textContent =
-            icon;
-
-        const content =
-            document.createElement(
-                'div'
-            );
-
-        const titleEl =
-            document.createElement(
-                'div'
-            );
-
-        titleEl.className =
-            'man-title';
-
-        titleEl.textContent =
-            title;
-
-        const bodyEl =
-            document.createElement(
-                'div'
-            );
-
-        bodyEl.className =
-            'man-body';
-
-        bodyEl.textContent =
-            body || (
-                type === 'ok'
-                    ? 'Đã xử lý xong. Vui lòng kiểm tra trước khi lưu.'
-                    : 'Vui lòng kiểm tra lại dữ liệu.'
-            );
-
-        const close =
-            document.createElement(
-                'button'
-            );
-
-        close.type =
-            'button';
-
-        close.className =
-            'man-close';
-
-        close.setAttribute(
-            'aria-label',
-            'Đóng'
+        showAutoDockPanel(
+            parsed.title,
+            renderSpeechBodyHtml(parsed.body || fallbackBody),
+            parsed.type,
+            parsed.type === 'ok'
+                ? 5200
+                : 9000
         );
-
-        close.textContent =
-            '×';
-
-        content.appendChild(
-            titleEl
-        );
-
-        content.appendChild(
-            bodyEl
-        );
-
-        wrap.appendChild(
-            iconEl
-        );
-
-        wrap.appendChild(
-            content
-        );
-
-        wrap.appendChild(
-            close
-        );
-
-        notice.appendChild(
-            accent
-        );
-
-        notice.appendChild(
-            wrap
-        );
-
-        document.body.appendChild(
-            notice
-        );
-
-        requestAnimationFrame(
-            () => {
-                notice.classList.add(
-                    'mau-show'
-                );
-            }
-        );
-
-        let timer =
-            null;
-
-        const closeNotice =
-            () => {
-
-                if (timer) {
-                    clearTimeout(
-                        timer
-                    );
-                }
-
-                notice.classList.remove(
-                    'mau-show'
-                );
-
-                setTimeout(
-                    () => {
-                        if (
-                            notice &&
-                            notice.parentNode
-                        ) {
-                            notice.parentNode.removeChild(
-                                notice
-                            );
-                        }
-                    },
-                    180
-                );
-            };
-
-        close.addEventListener(
-            'click',
-            closeNotice
-        );
-
-        // Thành công tự ẩn; cảnh báo/lỗi giữ lâu hơn.
-        timer =
-            setTimeout(
-                closeNotice,
-                type === 'ok'
-                    ? 5200
-                    : 9000
-            );
     }
 
 
@@ -10351,6 +10295,7 @@ async function autoM2KhamLamSang() {
 
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoV742Styles();
+        ensureUnifiedAutoSpeechBubbleStyles();
 
         const button =
             document.createElement(
@@ -10470,6 +10415,8 @@ async function autoM2KhamLamSang() {
                     false;
 
                 closeAutoDockPanel();
+
+                showRunningSpeechBubble(`⏳ ${model} · Đang AUTO\nĐang xử lý, vui lòng chờ...`);
 
                 let completed =
                     false;
