@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.36
+// @version      7.37
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -556,7 +556,7 @@
             );
 
 
-        alert(
+        autoAlert(
             '✅ M2 - Đã Auto Fill Tiền sử bệnh nhân dưới 18 tuổi!\n\n' +
             '— Các câu Không —\n' +
             `✓ Tổng tìm thấy: ${khongResult.found}\n` +
@@ -633,7 +633,7 @@
                 );
         }
 
-        alert(
+        autoAlert(
             `✅ M2 - Đã Auto Fill Đánh giá tâm thần (${subTabLabel})!\n\n` +
             `✓ Tổng tìm thấy: ${result.found}\n` +
             `✓ Đã chọn: ${result.count}\n` +
@@ -1544,7 +1544,7 @@ async function autoM2KhamLamSang() {
         '\nVui Lòng Kiểm Tra Trước Khi Lưu.';
 
 
-    alert(
+    autoAlert(
         message
     );
 }
@@ -1705,7 +1705,7 @@ async function autoM2KhamLamSang() {
 
                     } else {
 
-                        alert(
+                        autoAlert(
                             '⚠️ AUTO M2 chưa hỗ trợ tab này.\n\n' +
                             'Tab hiện tại: ' +
                             (tabTitle || '(không xác định)')
@@ -1721,15 +1721,13 @@ async function autoM2KhamLamSang() {
                     );
 
 
-                    alert(
+                    autoAlert(
                         '❌ Lỗi AUTO M2.\n\n' +
                         'Mở F12 → Console để xem chi tiết.'
                     );
 
 
                 } finally {
-
-                    hideStatusBar();
 
                     button.disabled =
                         false;
@@ -1873,7 +1871,7 @@ async function autoM2KhamLamSang() {
         );
 
 
-        alert(
+        autoAlert(
             '✅ M3 - Đã Auto Fill Tiền sử!\n\n' +
             '✓ 22 câu tiền sử\n' +
             '✓ Điều trị bệnh: Không\n' +
@@ -2278,7 +2276,7 @@ async function autoM2KhamLamSang() {
         await autoM3LoaiITatCa();
 
 
-        alert(
+        autoAlert(
             '✅ M3 - Đã Auto Fill Khám lâm sàng!\n\n' +
             '✓ Chưa phát hiện bất thường\n' +
             '✓ Loại I - tất cả các khoa\n\n' +
@@ -2405,14 +2403,12 @@ async function autoM2KhamLamSang() {
                     );
 
 
-                    alert(
+                    autoAlert(
                         '❌ Lỗi AUTO M3.\n\n' +
                         'Mở F12 → Console để xem chi tiết.'
                     );
 
                 } finally {
-
-                    hideStatusBar();
 
                     button.disabled =
                         false;
@@ -2432,7 +2428,7 @@ async function autoM2KhamLamSang() {
 
 
     // =========================================================
-    // GIAO DIỆN MODAL TÙY CHỈNH (thay cho alert()/confirm() thô
+    // GIAO DIỆN MODAL TÙY CHỈNH (thay cho autoAlert()/confirm() thô
     // của trình duyệt, dùng cho các thông báo quan trọng - xác
     // nhận bệnh nhân, cảnh báo kết quả bất thường)
     // =========================================================
@@ -4203,7 +4199,7 @@ async function autoM2KhamLamSang() {
         );
 
 
-        alert(
+        autoAlert(
             '✅ M4 - Đã Auto Fill Tiền sử!\n\n' +
             `✓ ${targets.length} câu Không\n` +
             '✓ Điều trị bệnh: Không\n' +
@@ -4357,7 +4353,7 @@ async function autoM2KhamLamSang() {
             );
         }
 
-        alert(
+        autoAlert(
             '✅ M4 - Đã Auto Fill Hỏi bệnh và khám lâm sàng!\n\n' +
             `✓ Đã xử lý: ${done}/${entries.length} câu\n` +
             (
@@ -4527,15 +4523,13 @@ async function autoM2KhamLamSang() {
                     );
 
 
-                    alert(
+                    autoAlert(
                         '❌ Lỗi AUTO M4.\n\n' +
                         'Mở F12 → Console để xem chi tiết.'
                     );
 
 
                 } finally {
-
-                    hideStatusBar();
 
                     button.disabled =
                         false;
@@ -4650,7 +4644,7 @@ async function autoM2KhamLamSang() {
             }
         );
 
-        alert(
+        autoAlert(
             `🔍 DEBUG: Tìm thấy ${candidates.length} phần tử.\n\n` +
             'Mở F12 → tab Console để xem danh sách chi tiết.\n' +
             'Copy toàn bộ log (hoặc chụp màn hình) gửi lại để mình sửa script.'
@@ -6967,7 +6961,7 @@ async function autoM2KhamLamSang() {
                 'Từ chối khám'
             );
 
-        alert(
+        autoAlert(
             '✅ M5/M6 - Đã Auto Fill Khám lâm sàng!\n\n' +
             '✓ Chưa phát hiện bất thường\n' +
             `✓ Loại I - tổng ${loaiIResult.found}, ` +
@@ -7090,7 +7084,7 @@ async function autoM2KhamLamSang() {
                         e
                     );
 
-                    alert(
+                    autoAlert(
                         '❌ Lỗi AUTO M5/M6.\n\n' +
                         'Mở F12 → Console để xem chi tiết.'
                     );
@@ -8248,113 +8242,15 @@ async function autoM2KhamLamSang() {
     // sidebar của portal ở góc dưới.
     // =========================================================
 
-    function ensureStatusBarStyles() {
+    // Thanh trạng thái trên cùng đã bỏ ở v7.37.
+    // Giữ hàm no-op để các logic cũ gọi vào không gây lỗi.
+    function ensureStatusBarStyles() {}
 
-        if (
-            document.getElementById(
-                'medinet-statusbar-style'
-            )
-        ) {
-
-            return;
-        }
-
-        const style =
-            document.createElement(
-                'style'
-            );
-
-        style.id =
-            'medinet-statusbar-style';
-
-        style.textContent = `
-            #medinet-status-bar {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                z-index: 9999999;
-                background: #0f172a;
-                color: #fff;
-                font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-                font-size: 13.5px;
-                font-weight: 600;
-                text-align: center;
-                padding: 9px 16px;
-                box-shadow: 0 2px 10px rgba(0,0,0,.3);
-                display: none;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-            }
-            #medinet-status-bar .medinet-spin {
-                display: inline-block;
-                width: 13px;
-                height: 13px;
-                border: 2px solid rgba(255,255,255,.35);
-                border-top-color: #fff;
-                border-radius: 50%;
-                animation: medinet-spin-anim .7s linear infinite;
-            }
-            @keyframes medinet-spin-anim {
-                to { transform: rotate(360deg); }
-            }
-        `;
-
-        document.head.appendChild(
-            style
-        );
+    function showStatusBar(message) {
+        log(message);
     }
 
-    function showStatusBar(
-        message
-    ) {
-
-        ensureStatusBarStyles();
-
-        let bar =
-            document.getElementById(
-                'medinet-status-bar'
-            );
-
-        if (!bar) {
-
-            bar =
-                document.createElement(
-                    'div'
-                );
-
-            bar.id =
-                'medinet-status-bar';
-
-            document.body.appendChild(
-                bar
-            );
-        }
-
-        bar.innerHTML =
-            '<span class="medinet-spin"></span>' +
-            '<span>' +
-            message +
-            '</span>';
-
-        bar.style.display =
-            'flex';
-    }
-
-    function hideStatusBar() {
-
-        const bar =
-            document.getElementById(
-                'medinet-status-bar'
-            );
-
-        if (bar) {
-
-            bar.style.display =
-                'none';
-        }
-    }
+    function hideStatusBar() {}
 
 
     // =========================================================
@@ -8583,11 +8479,11 @@ async function autoM2KhamLamSang() {
         style.textContent = `
             #medinet-auto-unified {
                 position: fixed;
-                right: 18px;
-                bottom: 18px;
+                right: 16px;
+                bottom: 16px;
                 z-index: 999999;
-                width: 76px;
-                height: 76px;
+                width: 68px;
+                height: 68px;
                 padding: 0;
                 border: 0;
                 border-radius: 50%;
@@ -8597,19 +8493,26 @@ async function autoM2KhamLamSang() {
                 cursor: pointer;
                 user-select: none;
                 outline: none;
-                filter: drop-shadow(0 8px 16px rgba(2, 6, 23, .34));
-                transition: transform .16s ease, filter .16s ease;
                 overflow: visible;
+                filter:
+                    drop-shadow(0 7px 13px rgba(2, 6, 23, .38))
+                    drop-shadow(0 0 4px rgba(34, 211, 238, .12));
+                transition:
+                    transform .16s cubic-bezier(.2,.8,.2,1),
+                    filter .16s ease;
             }
+
             #medinet-auto-unified:hover:not(:disabled) {
                 transform: translateY(-2px) scale(1.035);
                 filter:
-                    drop-shadow(0 10px 20px rgba(2, 6, 23, .38))
-                    drop-shadow(0 0 8px rgba(34, 211, 238, .20));
+                    drop-shadow(0 10px 18px rgba(2, 6, 23, .42))
+                    drop-shadow(0 0 8px rgba(34, 211, 238, .24));
             }
+
             #medinet-auto-unified:active:not(:disabled) {
                 transform: translateY(0) scale(.97);
             }
+
             #medinet-auto-unified:disabled {
                 cursor: wait;
             }
@@ -8619,168 +8522,446 @@ async function autoM2KhamLamSang() {
                 inset: 0;
                 border-radius: 50%;
                 background:
-                    radial-gradient(circle at 50% 42%, #123a57 0%, #0a1e31 42%, #07121f 68%, #030812 100%);
-                border: 1px solid rgba(125, 211, 252, .42);
+                    radial-gradient(circle at 50% 34%,
+                        rgba(22, 78, 109, .95) 0%,
+                        rgba(8, 31, 50, .98) 44%,
+                        rgba(3, 12, 23, 1) 75%,
+                        rgba(1, 6, 14, 1) 100%);
+                border: 1px solid rgba(125, 211, 252, .34);
                 box-shadow:
-                    inset 0 0 0 3px rgba(8, 47, 73, .9),
-                    inset 0 0 12px rgba(34, 211, 238, .16),
-                    0 0 0 2px rgba(15, 23, 42, .78),
-                    0 0 10px rgba(34, 211, 238, .26);
+                    inset 0 0 0 2px rgba(2, 6, 23, .82),
+                    inset 0 0 11px rgba(34, 211, 238, .10),
+                    0 0 0 1px rgba(14, 116, 144, .34),
+                    0 0 9px rgba(34, 211, 238, .22);
             }
 
+            /* Vành turbine: có khe thật thay vì border dashed giả */
             #medinet-auto-unified .mau-ring {
                 position: absolute;
-                inset: 5px;
+                inset: 3px;
                 border-radius: 50%;
-                border: 2px solid rgba(34, 211, 238, .30);
-                border-top-color: #67e8f9;
-                border-right-color: #22d3ee;
-                box-shadow:
-                    inset 0 0 8px rgba(34, 211, 238, .15),
-                    0 0 7px rgba(34, 211, 238, .20);
-                transition: opacity .15s ease;
+                background:
+                    repeating-conic-gradient(
+                        from 0deg,
+                        rgba(103,232,249,.95) 0deg 7deg,
+                        rgba(14,116,144,.12) 7deg 13deg,
+                        rgba(34,211,238,.44) 13deg 18deg,
+                        rgba(2,6,23,.05) 18deg 26deg
+                    );
+                -webkit-mask:
+                    radial-gradient(
+                        farthest-side,
+                        transparent calc(100% - 4px),
+                        #000 calc(100% - 4px)
+                    );
+                mask:
+                    radial-gradient(
+                        farthest-side,
+                        transparent calc(100% - 4px),
+                        #000 calc(100% - 4px)
+                    );
+                opacity: .72;
+                filter: drop-shadow(0 0 3px rgba(34,211,238,.45));
+                transform-origin: 50% 50%;
+                will-change: transform;
             }
 
-            #medinet-auto-unified .mau-ring::before,
-            #medinet-auto-unified .mau-ring::after {
-                content: '';
+            #medinet-auto-unified .mau-ring2 {
                 position: absolute;
+                inset: 8px;
                 border-radius: 50%;
-                pointer-events: none;
-            }
-            #medinet-auto-unified .mau-ring::before {
-                inset: 4px;
-                border: 1px dashed rgba(125, 211, 252, .30);
-            }
-            #medinet-auto-unified .mau-ring::after {
-                width: 5px;
-                height: 5px;
-                top: 2px;
-                left: 50%;
-                margin-left: -2.5px;
-                background: #a5f3fc;
-                box-shadow: 0 0 7px #22d3ee;
+                background:
+                    conic-gradient(
+                        from 25deg,
+                        rgba(34,211,238,.10),
+                        rgba(125,211,252,.72) 18deg,
+                        rgba(34,211,238,.08) 46deg,
+                        rgba(34,211,238,.08) 182deg,
+                        rgba(103,232,249,.65) 215deg,
+                        rgba(34,211,238,.08) 248deg,
+                        rgba(34,211,238,.10)
+                    );
+                -webkit-mask:
+                    radial-gradient(
+                        farthest-side,
+                        transparent calc(100% - 2px),
+                        #000 calc(100% - 2px)
+                    );
+                mask:
+                    radial-gradient(
+                        farthest-side,
+                        transparent calc(100% - 2px),
+                        #000 calc(100% - 2px)
+                    );
+                opacity: .7;
             }
 
             #medinet-auto-unified .mau-core {
                 position: absolute;
-                inset: 13px;
+                inset: 12px;
                 border-radius: 50%;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 background:
-                    radial-gradient(circle at 50% 34%, rgba(14, 116, 144, .52), rgba(8, 47, 73, .30) 52%, rgba(2, 6, 23, .74) 100%);
-                border: 1px solid rgba(103, 232, 249, .34);
-                box-shadow: inset 0 0 12px rgba(34, 211, 238, .12);
+                    radial-gradient(circle at 50% 34%,
+                        rgba(10, 105, 140, .46),
+                        rgba(6, 42, 63, .37) 47%,
+                        rgba(2, 8, 18, .91) 100%);
+                border: 1px solid rgba(103, 232, 249, .31);
+                box-shadow:
+                    inset 0 0 9px rgba(34, 211, 238, .14),
+                    0 0 0 1px rgba(2, 6, 23, .8);
                 overflow: hidden;
+            }
+
+            #medinet-auto-unified .mau-core::after {
+                content: '';
+                position: absolute;
+                inset: 2px;
+                border-radius: 50%;
+                background:
+                    linear-gradient(135deg,
+                        rgba(255,255,255,.10),
+                        transparent 34%,
+                        transparent 70%,
+                        rgba(34,211,238,.04));
+                pointer-events: none;
             }
 
             #medinet-auto-unified .mau-model {
                 position: relative;
                 z-index: 2;
-                font-size: 23px;
+                font-size: 21px;
                 line-height: 1;
                 font-weight: 900;
                 letter-spacing: -.6px;
                 color: #f8fdff;
                 text-shadow:
-                    0 0 5px rgba(103, 232, 249, .72),
-                    0 0 10px rgba(34, 211, 238, .26);
+                    0 0 4px rgba(103, 232, 249, .78),
+                    0 0 9px rgba(34, 211, 238, .25);
             }
 
             #medinet-auto-unified .mau-auto {
                 position: relative;
                 z-index: 2;
                 margin-top: 3px;
-                font-size: 7px;
+                font-size: 6.5px;
                 line-height: 1;
                 font-weight: 900;
                 letter-spacing: 1px;
                 color: #67e8f9;
             }
 
+            /* Vùng click cảnh báo lớn 30x30, nhưng badge nhìn vẫn gọn.
+               Nằm tách khỏi tâm AUTO để khó nhấn nhầm. */
             #medinet-auto-unified .mau-warning {
                 position: absolute;
-                z-index: 5;
-                top: 9px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 17px;
-                height: 17px;
+                z-index: 8;
+                top: -7px;
+                right: -7px;
+                width: 30px;
+                height: 30px;
                 padding: 0;
-                border: 1px solid rgba(251, 191, 36, .72);
+                border: 0;
                 border-radius: 50%;
                 display: none;
                 align-items: center;
                 justify-content: center;
-                background: linear-gradient(180deg, #f59e0b, #d97706);
-                color: #1c1000;
+                background: transparent;
+                cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            #medinet-auto-unified .mau-warning::before {
+                content: '!';
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background:
+                    linear-gradient(180deg, #fbbf24, #f59e0b 55%, #d97706);
+                color: #281500;
+                border: 1px solid rgba(254,243,199,.85);
                 font-size: 12px;
                 line-height: 1;
                 font-weight: 1000;
                 box-shadow:
-                    0 0 0 2px rgba(2, 6, 23, .88),
-                    0 0 9px rgba(245, 158, 11, .55);
-                cursor: pointer;
+                    0 0 0 2px rgba(2,6,23,.92),
+                    0 0 8px rgba(245,158,11,.58);
             }
+
+            #medinet-auto-unified .mau-warning:hover::before {
+                transform: scale(1.10);
+                box-shadow:
+                    0 0 0 2px rgba(2,6,23,.94),
+                    0 0 12px rgba(245,158,11,.78);
+            }
+
             #medinet-auto-unified.mau-has-warning .mau-warning {
                 display: inline-flex;
-            }
-            #medinet-auto-unified.mau-has-warning .mau-model {
-                transform: translateY(2px);
             }
 
             #medinet-auto-unified.mau-unknown .mau-shell {
                 filter: saturate(.35);
                 opacity: .78;
             }
+
             #medinet-auto-unified.mau-unknown .mau-model {
                 color: #cbd5e1;
                 text-shadow: none;
             }
+
             #medinet-auto-unified.mau-unknown .mau-auto {
                 color: #94a3b8;
             }
 
-            /* AUTO đang chạy: vành ngoài quay như bánh xe/turbine */
-            #medinet-auto-unified.mau-running .mau-ring {
-                animation: medinet-turbo-spin .62s linear infinite;
-                border-style: dashed;
-                border-width: 3px;
+            /* Tóe lửa nhẹ: chỉ xuất hiện lúc đang chạy */
+            #medinet-auto-unified .mau-sparks {
+                position: absolute;
+                inset: -5px;
+                border-radius: 50%;
+                z-index: 1;
+                pointer-events: none;
+                opacity: 0;
+                transform-origin: center;
             }
+
+            #medinet-auto-unified .mau-sparks i {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 2px;
+                height: 8px;
+                margin-left: -1px;
+                margin-top: -4px;
+                border-radius: 999px;
+                background: linear-gradient(
+                    to bottom,
+                    rgba(255,248,214,1),
+                    rgba(251,191,36,.96) 38%,
+                    rgba(249,115,22,.88) 72%,
+                    transparent 100%
+                );
+                box-shadow:
+                    0 0 4px rgba(251,191,36,.95),
+                    0 0 7px rgba(249,115,22,.50);
+                transform-origin: 1px 39px;
+            }
+
+            #medinet-auto-unified .mau-sparks i:nth-child(1) { transform: rotate(16deg) translateY(-34px) scale(.8); }
+            #medinet-auto-unified .mau-sparks i:nth-child(2) { transform: rotate(79deg) translateY(-34px) scale(.55); }
+            #medinet-auto-unified .mau-sparks i:nth-child(3) { transform: rotate(151deg) translateY(-34px) scale(.75); }
+            #medinet-auto-unified .mau-sparks i:nth-child(4) { transform: rotate(226deg) translateY(-34px) scale(.50); }
+            #medinet-auto-unified .mau-sparks i:nth-child(5) { transform: rotate(303deg) translateY(-34px) scale(.68); }
+
+            /* AUTO chạy: 2 vành quay ngược chiều -> cảm giác turbine thật hơn */
+            #medinet-auto-unified.mau-running .mau-ring {
+                opacity: 1;
+                animation: medinet-turbine-spin .88s linear infinite;
+            }
+
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                opacity: .95;
+                animation: medinet-turbine-counter 1.45s linear infinite;
+            }
+
             #medinet-auto-unified.mau-running .mau-shell {
                 box-shadow:
-                    inset 0 0 0 3px rgba(8, 47, 73, .95),
-                    inset 0 0 14px rgba(34, 211, 238, .22),
-                    0 0 0 2px rgba(15, 23, 42, .78),
-                    0 0 13px rgba(34, 211, 238, .42);
+                    inset 0 0 0 2px rgba(2, 6, 23, .82),
+                    inset 0 0 14px rgba(34,211,238,.16),
+                    0 0 0 1px rgba(14,116,144,.46),
+                    0 0 13px rgba(34,211,238,.38);
             }
+
+            #medinet-auto-unified.mau-running .mau-core {
+                animation: medinet-core-breathe .85s ease-in-out infinite alternate;
+            }
+
             #medinet-auto-unified.mau-running .mau-auto {
-                color: #a5f3fc;
-                animation: medinet-auto-pulse .85s ease-in-out infinite alternate;
+                color: #cffafe;
+                animation: medinet-auto-pulse .65s ease-in-out infinite alternate;
             }
-            @keyframes medinet-turbo-spin {
+
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity: .92;
+                animation:
+                    medinet-spark-orbit 1.08s linear infinite,
+                    medinet-spark-flicker .22s steps(2,end) infinite;
+            }
+
+            @keyframes medinet-turbine-spin {
                 to { transform: rotate(360deg); }
             }
+
+            @keyframes medinet-turbine-counter {
+                to { transform: rotate(-360deg); }
+            }
+
+            @keyframes medinet-spark-orbit {
+                to { transform: rotate(360deg); }
+            }
+
+            @keyframes medinet-spark-flicker {
+                0%, 100% { opacity: .35; filter: brightness(.85); }
+                50% { opacity: 1; filter: brightness(1.25); }
+            }
+
+            @keyframes medinet-core-breathe {
+                from {
+                    box-shadow:
+                        inset 0 0 9px rgba(34,211,238,.13),
+                        0 0 0 1px rgba(2,6,23,.8);
+                }
+                to {
+                    box-shadow:
+                        inset 0 0 13px rgba(34,211,238,.23),
+                        0 0 7px rgba(34,211,238,.18);
+                }
+            }
+
             @keyframes medinet-auto-pulse {
-                from { opacity: .55; }
+                from { opacity: .58; }
                 to { opacity: 1; }
+            }
+
+            /* Thẻ kết quả AUTO: thay alert thô */
+            #medinet-auto-notice {
+                position: fixed;
+                right: 16px;
+                bottom: 94px;
+                z-index: 1000000;
+                width: min(330px, calc(100vw - 28px));
+                font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+                color: #e5eef7;
+                background:
+                    linear-gradient(180deg,
+                        rgba(11, 24, 40, .97),
+                        rgba(4, 12, 24, .98));
+                border: 1px solid rgba(100, 210, 235, .22);
+                border-radius: 14px;
+                box-shadow:
+                    0 16px 38px rgba(2,6,23,.38),
+                    0 0 18px rgba(34,211,238,.08);
+                overflow: hidden;
+                transform: translateY(8px) scale(.98);
+                opacity: 0;
+                transition:
+                    opacity .18s ease,
+                    transform .18s ease;
+                backdrop-filter: blur(8px);
+            }
+
+            #medinet-auto-notice.mau-show {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+
+            #medinet-auto-notice .man-accent {
+                height: 3px;
+                background: linear-gradient(90deg, #22d3ee, #38bdf8, #67e8f9);
+            }
+
+            #medinet-auto-notice.man-warn .man-accent {
+                background: linear-gradient(90deg, #f59e0b, #fbbf24, #fb923c);
+            }
+
+            #medinet-auto-notice.man-error .man-accent {
+                background: linear-gradient(90deg, #ef4444, #fb7185, #f97316);
+            }
+
+            #medinet-auto-notice .man-wrap {
+                display: grid;
+                grid-template-columns: 34px 1fr 24px;
+                gap: 10px;
+                align-items: start;
+                padding: 12px 12px 13px;
+            }
+
+            #medinet-auto-notice .man-icon {
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(34,211,238,.11);
+                border: 1px solid rgba(103,232,249,.16);
+                font-size: 18px;
+            }
+
+            #medinet-auto-notice.man-warn .man-icon {
+                background: rgba(245,158,11,.11);
+                border-color: rgba(251,191,36,.16);
+            }
+
+            #medinet-auto-notice.man-error .man-icon {
+                background: rgba(239,68,68,.11);
+                border-color: rgba(248,113,113,.16);
+            }
+
+            #medinet-auto-notice .man-title {
+                margin: 0 0 4px;
+                color: #f8fafc;
+                font-size: 13px;
+                font-weight: 800;
+                letter-spacing: .1px;
+            }
+
+            #medinet-auto-notice .man-body {
+                color: #b9c8d8;
+                font-size: 12px;
+                line-height: 1.48;
+                white-space: pre-line;
+            }
+
+            #medinet-auto-notice .man-close {
+                width: 24px;
+                height: 24px;
+                border: 0;
+                border-radius: 7px;
+                background: rgba(255,255,255,.05);
+                color: #94a3b8;
+                cursor: pointer;
+                font-size: 16px;
+                line-height: 1;
+            }
+
+            #medinet-auto-notice .man-close:hover {
+                background: rgba(255,255,255,.10);
+                color: #fff;
             }
 
             @media (max-width: 640px) {
                 #medinet-auto-unified {
-                    right: 12px;
-                    bottom: 12px;
-                    width: 68px;
-                    height: 68px;
+                    right: 11px;
+                    bottom: 11px;
+                    width: 61px;
+                    height: 61px;
                 }
+
                 #medinet-auto-unified .mau-model {
-                    font-size: 21px;
+                    font-size: 19px;
                 }
+
                 #medinet-auto-unified .mau-core {
-                    inset: 12px;
+                    inset: 11px;
+                }
+
+                #medinet-auto-unified .mau-warning {
+                    top: -8px;
+                    right: -8px;
+                    width: 29px;
+                    height: 29px;
+                }
+
+                #medinet-auto-notice {
+                    right: 10px;
+                    bottom: 82px;
+                    width: min(318px, calc(100vw - 20px));
                 }
             }
         `;
@@ -8789,6 +8970,247 @@ async function autoM2KhamLamSang() {
             style
         );
     }
+
+
+    function autoAlert(message) {
+
+        ensureUnifiedAutoStyles();
+
+        const raw =
+            String(message || '').trim();
+
+        const firstLine =
+            raw.split('\n')[0] || 'Thông báo';
+
+        const lower =
+            norm(raw);
+
+        let type = 'ok';
+        let icon = '✓';
+
+        if (
+            firstLine.includes('❌') ||
+            lower.includes('lỗi')
+        ) {
+            type = 'error';
+            icon = '×';
+        } else if (
+            firstLine.includes('⚠️') ||
+            lower.includes('cảnh báo') ||
+            lower.includes('chưa hỗ trợ') ||
+            lower.includes('không tìm thấy')
+        ) {
+            type = 'warn';
+            icon = '!';
+        }
+
+        const title =
+            firstLine
+                .replace(/[✅⚠️❌📋🚀]/g, '')
+                .trim() ||
+            (
+                type === 'ok'
+                    ? 'AUTO hoàn tất'
+                    : type === 'warn'
+                        ? 'Cần kiểm tra'
+                        : 'AUTO gặp lỗi'
+            );
+
+        const body =
+            raw
+                .split('\n')
+                .slice(1)
+                .join('\n')
+                .replace(/^\s+|\s+$/g, '')
+                .replace(/Vui Lòng/gi, 'Vui lòng');
+
+        let notice =
+            document.getElementById(
+                'medinet-auto-notice'
+            );
+
+        if (notice) {
+            notice.remove();
+        }
+
+        notice =
+            document.createElement(
+                'div'
+            );
+
+        notice.id =
+            'medinet-auto-notice';
+
+        notice.className =
+            type === 'warn'
+                ? 'man-warn'
+                : type === 'error'
+                    ? 'man-error'
+                    : 'man-ok';
+
+        const accent =
+            document.createElement(
+                'div'
+            );
+
+        accent.className =
+            'man-accent';
+
+        const wrap =
+            document.createElement(
+                'div'
+            );
+
+        wrap.className =
+            'man-wrap';
+
+        const iconEl =
+            document.createElement(
+                'div'
+            );
+
+        iconEl.className =
+            'man-icon';
+
+        iconEl.textContent =
+            icon;
+
+        const content =
+            document.createElement(
+                'div'
+            );
+
+        const titleEl =
+            document.createElement(
+                'div'
+            );
+
+        titleEl.className =
+            'man-title';
+
+        titleEl.textContent =
+            title;
+
+        const bodyEl =
+            document.createElement(
+                'div'
+            );
+
+        bodyEl.className =
+            'man-body';
+
+        bodyEl.textContent =
+            body || (
+                type === 'ok'
+                    ? 'Đã xử lý xong. Vui lòng kiểm tra trước khi lưu.'
+                    : 'Vui lòng kiểm tra lại dữ liệu.'
+            );
+
+        const close =
+            document.createElement(
+                'button'
+            );
+
+        close.type =
+            'button';
+
+        close.className =
+            'man-close';
+
+        close.setAttribute(
+            'aria-label',
+            'Đóng'
+        );
+
+        close.textContent =
+            '×';
+
+        content.appendChild(
+            titleEl
+        );
+
+        content.appendChild(
+            bodyEl
+        );
+
+        wrap.appendChild(
+            iconEl
+        );
+
+        wrap.appendChild(
+            content
+        );
+
+        wrap.appendChild(
+            close
+        );
+
+        notice.appendChild(
+            accent
+        );
+
+        notice.appendChild(
+            wrap
+        );
+
+        document.body.appendChild(
+            notice
+        );
+
+        requestAnimationFrame(
+            () => {
+                notice.classList.add(
+                    'mau-show'
+                );
+            }
+        );
+
+        let timer =
+            null;
+
+        const closeNotice =
+            () => {
+
+                if (timer) {
+                    clearTimeout(
+                        timer
+                    );
+                }
+
+                notice.classList.remove(
+                    'mau-show'
+                );
+
+                setTimeout(
+                    () => {
+                        if (
+                            notice &&
+                            notice.parentNode
+                        ) {
+                            notice.parentNode.removeChild(
+                                notice
+                            );
+                        }
+                    },
+                    180
+                );
+            };
+
+        close.addEventListener(
+            'click',
+            closeNotice
+        );
+
+        // Thành công tự ẩn; cảnh báo/lỗi giữ lâu hơn.
+        timer =
+            setTimeout(
+                closeNotice,
+                type === 'ok'
+                    ? 5200
+                    : 9000
+            );
+    }
+
 
     function hasCurrentCanLamSangWarning() {
 
@@ -8890,7 +9312,7 @@ async function autoM2KhamLamSang() {
 
         } else {
 
-            alert(
+            autoAlert(
                 '⚠️ AUTO M2 chưa hỗ trợ tab này.\n\n' +
                 'Tab hiện tại: ' +
                 (tabTitle || '(không xác định)')
@@ -9028,16 +9450,37 @@ async function autoM2KhamLamSang() {
         button.innerHTML =
             '<span class="mau-shell"></span>' +
             '<span class="mau-ring"></span>' +
+            '<span class="mau-ring2"></span>' +
+            '<span class="mau-sparks" aria-hidden="true">' +
+                '<i></i><i></i><i></i><i></i><i></i>' +
+            '</span>' +
             '<span class="mau-core">' +
                 '<span class="mau-model">—</span>' +
                 '<span class="mau-auto">AUTO</span>' +
             '</span>' +
-            '<span class="mau-warning" role="button" aria-label="Xem cảnh báo" title="Xem cảnh báo">!</span>';
+            '<span class="mau-warning" role="button" aria-label="Xem cảnh báo" title="Xem cảnh báo"></span>';
 
         const warningButton =
             button.querySelector(
                 '.mau-warning'
             );
+
+        const stopWarningBubble =
+            function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            };
+
+        warningButton.addEventListener(
+            'pointerdown',
+            stopWarningBubble
+        );
+
+        warningButton.addEventListener(
+            'touchstart',
+            stopWarningBubble,
+            { passive: false }
+        );
 
         warningButton.addEventListener(
             'click',
@@ -9089,10 +9532,6 @@ async function autoM2KhamLamSang() {
                     'mau-running'
                 );
 
-                showStatusBar(
-                    `Đang chạy AUTO ${model}...`
-                );
-
                 try {
 
                     await runAutoByDetectedModel(
@@ -9106,14 +9545,12 @@ async function autoM2KhamLamSang() {
                         e
                     );
 
-                    alert(
+                    autoAlert(
                         `❌ Lỗi AUTO ${model}.\n\n` +
                         'Mở F12 → Console để xem chi tiết.'
                     );
 
                 } finally {
-
-                    hideStatusBar();
 
                     button.disabled =
                         false;
