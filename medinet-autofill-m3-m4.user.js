@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.48
+// @version      7.49
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -8058,60 +8058,13 @@ async function autoM2KhamLamSang() {
 
 
         // -----------------------------------------------------
-        // NẾU CÓ THÔNG SỐ THIẾU (sheet chưa trả đủ kết quả) ->
-        // cảnh báo liên hệ Khoa Xét nghiệm. Nếu điền đủ hết thì
-        // thôi, không hiện gì (như yêu cầu).
+        // V7.49: Vừa lấy xong kết quả là tự hiện báo cáo ngay,
+        // bất kể có bất thường / thiếu thông số hay hoàn toàn bình thường.
+        // Dấu ! trên nút AUTO chỉ dùng để XEM LẠI.
         // -----------------------------------------------------
 
-        if (
-            missingLabels.length
-        ) {
+        showLatestCanLamSangReport(true);
 
-            await infoModal(
-                `⚠️ ${tenBenhNhan} - Thiếu thông số xét nghiệm`,
-                '<div>Các thông số sau chưa có kết quả trong sheet:</div>' +
-                '<ul style="margin:10px 0 0;padding-left:20px;">' +
-                missingLabels.map(
-                    l =>
-                        `<li>${l}</li>`
-                ).join(
-                    ''
-                ) +
-                '</ul>' +
-                `<div class="mnm-note">${KHOA_XN_CONTACT_MSG}</div>`,
-                'mnm-warn'
-            );
-        }
-
-
-        // -----------------------------------------------------
-        // CHỈ hiện cảnh báo khi có kết quả bất thường.
-        // Bình thường thì thôi, không hiện gì thêm.
-        // -----------------------------------------------------
-
-        if (
-            findings.length
-        ) {
-
-            showAutoDockPanel(
-                `⚠️ ${tenBenhNhan} - Có kết quả bất thường`,
-                renderFindingsHtml(
-                    findings
-                ) +
-                '<div class="mnm-note">💡 Bấm dấu <b>!</b> trên nút AUTO để xem lại báo cáo bất cứ lúc nào.</div>',
-                'warn'
-            );
-
-        } else {
-
-            log(
-                'Không phát hiện kết quả bất thường (theo khoảng tham khảo).'
-            );
-
-            showToast(
-                `✓ ${tenBenhNhan} - Đã điền xong, không có kết quả bất thường`
-            );
-        }
     }
 
 
@@ -8119,46 +8072,30 @@ async function autoM2KhamLamSang() {
     // XEM LẠI CẢNH BÁO GẦN NHẤT (không cần nhập lại SID/tên)
     // -----------------------------------------------------------
 
-    function xemLaiCanhBao() {
 
-        if (
-            !lastCanLamSangReport
-        ) {
-
-            showAutoDockPanel(
-                'Chưa có báo cáo',
-                '<div>Chưa có báo cáo nào trong phiên này.<br><br>' +
-                'Vui lòng bấm AUTO M3/AUTO M4 ở trang Khám cận ' +
-                'lâm sàng trước.</div>'
-            );
-
-            return;
-        }
-
-        const r =
-            lastCanLamSangReport;
+    function buildCanLamSangReportHtml(r) {
+        if (!r) return '<div>Chưa có báo cáo.</div>';
 
         const missingHtml =
-            r.missingLabels &&
-            r.missingLabels.length
+            r.missingLabels && r.missingLabels.length
                 ? (
                     '<div style="margin-bottom:14px;">' +
-                    '<div style="font-weight:700;color:#b45309;margin-bottom:6px;">' +
+                    '<div style="font-weight:800;color:#92400e;margin-bottom:6px;">' +
                     '⚠️ Thiếu thông số:</div>' +
                     '<ul style="margin:0;padding-left:20px;">' +
-                    r.missingLabels.map(
-                        l =>
-                            `<li>${l}</li>`
-                    ).join(
-                        ''
-                    ) +
+                    r.missingLabels.map(l => `<li>${l}</li>`).join('') +
                     '</ul>' +
                     `<div class="mnm-note">${KHOA_XN_CONTACT_MSG}</div>` +
                     '</div>'
                 )
                 : '';
 
-        const bodyHtml =
+        const findingsHtml =
+            r.findings && r.findings.length
+                ? renderFindingsHtml(r.findings)
+                : '<div class="madp-no-abnormal">✓ Không phát hiện kết quả bất thường theo khoảng tham khảo.</div>';
+
+        return (
             '<div class="mnm-patient-card" style="margin-bottom:14px;">' +
             `<span>SID</span><b>${r.sidThat}</b>` +
             `<span>Họ tên</span><b>${r.tenBenhNhan}</b>` +
@@ -8166,18 +8103,46 @@ async function autoM2KhamLamSang() {
             `<span>Giới tính</span><b>${r.gioiTinh}</b>` +
             '</div>' +
             missingHtml +
-            renderFindingsHtml(
-                r.findings
+            findingsHtml +
+            '<div class="madp-save-reminder">💾 AUTO chỉ điền dữ liệu. Hãy bấm “Lưu thay đổi” trước khi chuyển tab.</div>'
+        );
+    }
+
+    function showLatestCanLamSangReport(autoShown = false) {
+        if (!lastCanLamSangReport) {
+            showAutoDockPanel(
+                'Chưa có báo cáo',
+                '<div>Chưa có báo cáo nào trong phiên này.<br><br>Vui lòng chạy AUTO ở trang Khám cận lâm sàng trước.</div>',
+                'info',
+                autoShown ? 5000 : 0
             );
+            return;
+        }
+
+        const r = lastCanLamSangReport;
+        const hasWarning = !!(
+            (r.findings && r.findings.length) ||
+            (r.missingLabels && r.missingLabels.length)
+        );
+
+        const title = hasWarning
+            ? `📋 ${r.tenBenhNhan} · Có kết quả cần kiểm tra`
+            : `📋 ${r.tenBenhNhan} · Kết quả xét nghiệm`;
 
         showAutoDockPanel(
-            `📋 Báo cáo gần nhất`,
-            bodyHtml,
-            r.findings.length ||
-            (r.missingLabels && r.missingLabels.length)
-                ? 'warn'
-                : 'info'
+            title,
+            buildCanLamSangReportHtml(r),
+            hasWarning ? 'warn' : 'info',
+            autoShown ? (hasWarning ? 12000 : 7500) : 0
         );
+
+        if (autoShown && unifiedAutoRuntime.running) {
+            unifiedAutoRuntime.reportShown = true;
+        }
+    }
+
+    function xemLaiCanhBao() {
+        showLatestCanLamSangReport(false);
     }
 
     function createXemCanhBaoButton() {
@@ -10940,11 +10905,113 @@ async function autoM2KhamLamSang() {
         document.head.appendChild(style);
     }
 
+
+    function ensureUnifiedAutoV749Styles() {
+        if (document.getElementById('medinet-auto-v749-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v749-style';
+        style.textContent = `
+            /* =====================================================
+               v7.49 — visible patient values + real DOM manga tail
+               ===================================================== */
+
+            /* Kill every pseudo-element tail from every old version. */
+            #medinet-auto-dock-panel::before,
+            #medinet-auto-dock-panel::after {
+                content:none !important;
+                display:none !important;
+                border:0 !important;
+                background:transparent !important;
+                box-shadow:none !important;
+            }
+
+            /* Real manga tail: two nested triangles, no brown artifact. */
+            #medinet-auto-dock-panel .madp-tail {
+                position:absolute !important;
+                right:22px !important;
+                bottom:-15px !important;
+                width:0 !important;
+                height:0 !important;
+                border-left:11px solid transparent !important;
+                border-right:4px solid transparent !important;
+                border-top:16px solid #111827 !important;
+                z-index:4 !important;
+                pointer-events:none !important;
+                filter:none !important;
+            }
+            #medinet-auto-dock-panel .madp-tail::after {
+                content:'' !important;
+                position:absolute !important;
+                left:-7px !important;
+                top:-16px !important;
+                width:0 !important;
+                height:0 !important;
+                border-left:8px solid transparent !important;
+                border-right:2px solid transparent !important;
+                border-top:12px solid #fffdf7 !important;
+            }
+            #medinet-auto-dock-panel.madp-warn .madp-tail::after { border-top-color:#fffaf0 !important; }
+            #medinet-auto-dock-panel.madp-error .madp-tail::after { border-top-color:#fff5f5 !important; }
+
+            /* Patient card values must NEVER inherit portal/extension colors. */
+            #medinet-auto-dock-panel .mnm-patient-card {
+                color:#111827 !important;
+                -webkit-text-fill-color:#111827 !important;
+                background:#ffffff !important;
+                border:1px solid #d9dee7 !important;
+            }
+            #medinet-auto-dock-panel .mnm-patient-card span {
+                color:#334155 !important;
+                -webkit-text-fill-color:#334155 !important;
+                opacity:1 !important;
+                visibility:visible !important;
+            }
+            #medinet-auto-dock-panel .mnm-patient-card b,
+            #medinet-auto-dock-panel .mnm-patient-card strong {
+                color:#0f172a !important;
+                -webkit-text-fill-color:#0f172a !important;
+                background:transparent !important;
+                opacity:1 !important;
+                visibility:visible !important;
+                text-shadow:none !important;
+                font-weight:800 !important;
+            }
+            #medinet-auto-dock-panel .mnm-patient-card ::selection {
+                background:#bfdbfe !important;
+                color:#0f172a !important;
+                -webkit-text-fill-color:#0f172a !important;
+            }
+
+            #medinet-auto-dock-panel .madp-no-abnormal {
+                margin:4px 0 2px !important;
+                padding:10px 12px !important;
+                border-radius:12px !important;
+                border:1px solid #bbf7d0 !important;
+                background:#f0fdf4 !important;
+                color:#166534 !important;
+                -webkit-text-fill-color:#166534 !important;
+                font-weight:800 !important;
+            }
+            #medinet-auto-dock-panel .madp-save-reminder {
+                margin-top:10px !important;
+                padding:9px 11px !important;
+                border-radius:11px !important;
+                border:1px dashed #d97706 !important;
+                background:#fffbeb !important;
+                color:#92400e !important;
+                -webkit-text-fill-color:#92400e !important;
+                font-weight:800 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     const unifiedAutoRuntime = {
         running: false,
         model: '',
         lastMessage: '',
-        blocked: false
+        blocked: false,
+        reportShown: false
     };
 
     function normalizeAutoMessageModel(message) {
@@ -10984,6 +11051,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV746Styles();
         ensureUnifiedAutoV747Styles();
         ensureUnifiedAutoV748Styles();
+        ensureUnifiedAutoV749Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
         ensureAutoDockContextWatcher();
         closeAutoDockPanel();
@@ -11000,7 +11068,8 @@ async function autoM2KhamLamSang() {
                 '<span class="madp-pulse"></span>' +
                 '<div class="madp-title"></div>' +
             '</div>' +
-            '<div class="madp-body"></div>';
+            '<div class="madp-body"></div>' +
+            '<span class="madp-tail" aria-hidden="true"></span>';
 
         panel.querySelector('.madp-title').textContent = String(title || 'Thông báo');
         panel.querySelector('.madp-body').innerHTML = String(bodyHtml || '');
@@ -11024,6 +11093,8 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoV746Styles();
         ensureUnifiedAutoV747Styles();
+        ensureUnifiedAutoV748Styles();
+        ensureUnifiedAutoV749Styles();
 
         message = normalizeAutoMessageModel(
             message
@@ -11302,6 +11373,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV746Styles();
         ensureUnifiedAutoV747Styles();
         ensureUnifiedAutoV748Styles();
+        ensureUnifiedAutoV749Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
 
         const button =
@@ -11421,6 +11493,9 @@ async function autoM2KhamLamSang() {
                 unifiedAutoRuntime.blocked =
                     false;
 
+                unifiedAutoRuntime.reportShown =
+                    false;
+
                 closeAutoDockPanel();
 
                 showRunningSpeechBubble(`⏳ ${model} · Đang AUTO\nĐang xử lý, vui lòng chờ...`);
@@ -11462,7 +11537,14 @@ async function autoM2KhamLamSang() {
 
                     updateUnifiedAutoButton();
 
-                    if (completed && !unifiedAutoRuntime.blocked) {
+                    if (
+                        completed &&
+                        !unifiedAutoRuntime.blocked &&
+                        unifiedAutoRuntime.reportShown
+                    ) {
+                        // Báo cáo xét nghiệm đã tự bật ngay khi lấy xong dữ liệu.
+                        // Không ghi đè nó bằng bubble "AUTO hoàn tất".
+                    } else if (completed && !unifiedAutoRuntime.blocked) {
                         autoAlert(
                             buildUnifiedCompletionMessage(
                                 model
@@ -11482,6 +11564,9 @@ async function autoM2KhamLamSang() {
                         '';
 
                     unifiedAutoRuntime.blocked =
+                        false;
+
+                    unifiedAutoRuntime.reportShown =
                         false;
                 }
             }
