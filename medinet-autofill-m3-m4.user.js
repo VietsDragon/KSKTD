@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.38
+// @version      7.39
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -9145,7 +9145,74 @@ async function autoM2KhamLamSang() {
                     medinet-spark-flicker .16s steps(2,end) infinite;
             }
 
-            /* Notice v7.38: độ tương phản cao, nhỏ hơn và né nút mặc định */
+            /* v7.39 - Lửa bốc lên rõ ràng khi AUTO đang chạy.
+               Lửa chỉ là hiệu ứng UI, không ảnh hưởng vùng bấm. */
+            #medinet-auto-unified .mau-flames {
+                position: absolute;
+                left: 50%;
+                top: -20px;
+                width: 58px;
+                height: 38px;
+                transform: translateX(-50%);
+                z-index: 0;
+                pointer-events: none;
+                opacity: 0;
+                overflow: visible;
+                filter: drop-shadow(0 -2px 6px rgba(249,115,22,.38));
+            }
+
+            #medinet-auto-unified .mau-flames i {
+                position: absolute;
+                bottom: 0;
+                width: 8px;
+                height: 24px;
+                border-radius: 70% 30% 65% 35% / 75% 35% 65% 25%;
+                transform-origin: 50% 100%;
+                background:
+                    radial-gradient(circle at 50% 78%, #ecfeff 0 12%, transparent 13%),
+                    linear-gradient(to top,
+                        #22d3ee 0 10%,
+                        #fde68a 11% 32%,
+                        #fb923c 33% 62%,
+                        #f97316 63% 78%,
+                        rgba(239,68,68,.05) 100%);
+                box-shadow:
+                    0 -3px 7px rgba(251,146,60,.52),
+                    0 -8px 14px rgba(249,115,22,.20);
+                opacity: .95;
+            }
+
+            #medinet-auto-unified .mau-flames i:nth-child(1) { left: 3px;  height: 17px; transform: rotate(-24deg) scale(.72); }
+            #medinet-auto-unified .mau-flames i:nth-child(2) { left: 10px; height: 25px; transform: rotate(-14deg) scale(.86); }
+            #medinet-auto-unified .mau-flames i:nth-child(3) { left: 19px; height: 31px; transform: rotate(-5deg)  scale(1.00); }
+            #medinet-auto-unified .mau-flames i:nth-child(4) { left: 27px; height: 36px; transform: rotate(2deg)   scale(1.06); }
+            #medinet-auto-unified .mau-flames i:nth-child(5) { left: 35px; height: 29px; transform: rotate(10deg)  scale(.94); }
+            #medinet-auto-unified .mau-flames i:nth-child(6) { left: 43px; height: 22px; transform: rotate(18deg)  scale(.82); }
+            #medinet-auto-unified .mau-flames i:nth-child(7) { left: 50px; height: 15px; transform: rotate(26deg)  scale(.66); }
+
+            #medinet-auto-unified.mau-running .mau-flames {
+                opacity: 1;
+            }
+
+            #medinet-auto-unified.mau-running .mau-flames i:nth-child(odd) {
+                animation: medinet-flame-rise .34s ease-in-out infinite alternate;
+            }
+
+            #medinet-auto-unified.mau-running .mau-flames i:nth-child(even) {
+                animation: medinet-flame-rise2 .27s ease-in-out infinite alternate-reverse;
+            }
+
+            @keyframes medinet-flame-rise {
+                0%   { margin-bottom: 0;    filter: brightness(.90); clip-path: polygon(50% 0,100% 45%,78% 100%,20% 100%,0 48%); }
+                100% { margin-bottom: 7px;  filter: brightness(1.30); clip-path: polygon(50% 0,88% 48%,100% 72%,73% 100%,19% 100%,0 56%,16% 33%); }
+            }
+
+            @keyframes medinet-flame-rise2 {
+                0%   { margin-bottom: 2px; transform: translateX(-1px) scaleY(.82); filter: brightness(1.05); }
+                100% { margin-bottom: 10px; transform: translateX(1px) scaleY(1.18); filter: brightness(1.42); }
+            }
+
+            /* Notice v7.39: nhắc LƯU thật rõ, nhưng không che UI Medinet */
             #medinet-auto-notice {
                 right: 94px;
                 bottom: 90px;
@@ -9182,6 +9249,28 @@ async function autoM2KhamLamSang() {
 
             #medinet-auto-notice.man-warn .man-icon {
                 color: #fef3c7 !important;
+            }
+
+
+            #medinet-auto-notice.man-warn {
+                border-color: rgba(251,191,36,.66) !important;
+                background:
+                    linear-gradient(180deg, rgba(35,23,3,.985), rgba(14,10,3,.995)) !important;
+                box-shadow:
+                    0 14px 32px rgba(2,6,23,.42),
+                    0 0 0 1px rgba(245,158,11,.16),
+                    0 0 22px rgba(245,158,11,.16) !important;
+            }
+
+            #medinet-auto-notice.man-warn .man-title {
+                color: #fef3c7 !important;
+                font-size: 14px !important;
+                letter-spacing: .15px;
+            }
+
+            #medinet-auto-notice.man-warn .man-body {
+                color: #fff7ed !important;
+                font-weight: 650;
             }
 
             #medinet-auto-notice.man-error .man-icon {
@@ -9248,7 +9337,7 @@ async function autoM2KhamLamSang() {
         );
 
         // Khi đang chạy từ nút AUTO hợp nhất, giữ thông báo nội bộ
-        // lại để cuối quy trình chỉ hiện 1 thẻ kết quả + trạng thái lưu.
+        // lại để cuối quy trình chỉ hiện 1 thẻ kết quả + nhắc lưu rõ ràng.
         if (unifiedAutoRuntime.running) {
             unifiedAutoRuntime.lastMessage =
                 String(message || '');
@@ -9696,80 +9785,7 @@ async function autoM2KhamLamSang() {
         }
     }
 
-    function findVisibleSaveButton() {
-
-        const candidates = [
-            ...document.querySelectorAll(
-                'button, [role="button"], .dx-button'
-            )
-        ];
-
-        const isVisible =
-            el => {
-                if (!el) return false;
-                const style = getComputedStyle(el);
-                const rect = el.getBoundingClientRect();
-                return (
-                    style.display !== 'none' &&
-                    style.visibility !== 'hidden' &&
-                    rect.width > 0 &&
-                    rect.height > 0
-                );
-            };
-
-        const exact =
-            candidates.find(
-                el =>
-                    isVisible(el) &&
-                    norm(el.innerText || el.textContent) === 'lưu thay đổi' &&
-                    !el.disabled &&
-                    el.getAttribute('aria-disabled') !== 'true'
-            );
-
-        if (exact) {
-            return exact;
-        }
-
-        return candidates.find(
-            el =>
-                isVisible(el) &&
-                norm(el.innerText || el.textContent).includes('lưu thay đổi') &&
-                !el.disabled &&
-                el.getAttribute('aria-disabled') !== 'true'
-        ) || null;
-    }
-
-    async function autoSaveCurrentForm() {
-
-        await sleep(
-            220
-        );
-
-        const saveButton =
-            findVisibleSaveButton();
-
-        if (!saveButton) {
-            return {
-                clicked: false,
-                reason: 'not-found'
-            };
-        }
-
-        robustClick(
-            saveButton
-        );
-
-        await sleep(
-            300
-        );
-
-        return {
-            clicked: true,
-            reason: 'clicked'
-        };
-    }
-
-    function buildUnifiedCompletionMessage(model, saveResult) {
+    function buildUnifiedCompletionMessage(model) {
 
         let detail =
             String(
@@ -9780,23 +9796,19 @@ async function autoM2KhamLamSang() {
             .join('\n')
             .trim();
 
-        // Bỏ các câu nhắc lưu cũ vì quy trình mới tự bấm Lưu thay đổi.
+        // AUTO chỉ điền dữ liệu. KHÔNG tự lưu.
+        // Loại câu nhắc cũ để thay bằng cảnh báo lưu rõ ràng hơn bên dưới.
         detail = detail
             .replace(/Vui lòng kiểm tra trước khi lưu\.?/gi, '')
             .replace(/Vui Lòng Kiểm Tra Trước Khi Lưu\.?/g, '')
             .replace(/\n{3,}/g, '\n\n')
             .trim();
 
-        const saveLine =
-            saveResult && saveResult.clicked
-                ? '✓ Đã bấm Lưu thay đổi.'
-                : '⚠️ AUTO đã xong nhưng không tìm thấy nút Lưu thay đổi.';
-
         return (
-            (saveResult && saveResult.clicked ? '✅' : '⚠️') +
-            ` ${model} - AUTO hoàn tất\n\n` +
-            (detail ? detail + '\n' : '') +
-            saveLine
+            `⚠️ ${model} - AUTO hoàn tất · CHƯA LƯU\n\n` +
+            (detail ? detail + '\n\n' : '') +
+            '💾 HÃY BẤM “LƯU THAY ĐỔI” NGAY BÂY GIỜ.\n' +
+            'Không chuyển tab / quay lại / mở hồ sơ khác trước khi lưu.'
         );
     }
 
@@ -9836,6 +9848,9 @@ async function autoM2KhamLamSang() {
             '<span class="mau-ring2"></span>' +
             '<span class="mau-sparks" aria-hidden="true">' +
                 '<i></i><i></i><i></i><i></i><i></i>' +
+            '</span>' +
+            '<span class="mau-flames" aria-hidden="true">' +
+                '<i></i><i></i><i></i><i></i><i></i><i></i><i></i>' +
             '</span>' +
             '<span class="mau-core">' +
                 '<span class="mau-model">—</span>' +
@@ -9927,9 +9942,6 @@ async function autoM2KhamLamSang() {
                 let completed =
                     false;
 
-                let saveResult =
-                    null;
-
                 try {
 
                     await runAutoByDetectedModel(
@@ -9938,11 +9950,6 @@ async function autoM2KhamLamSang() {
 
                     completed =
                         true;
-
-                    // AUTO xong -> bấm Lưu thay đổi ngay, tránh người dùng
-                    // chuyển trang trước khi lưu dữ liệu vừa điền.
-                    saveResult =
-                        await autoSaveCurrentForm();
 
                 } catch (e) {
 
@@ -9972,8 +9979,7 @@ async function autoM2KhamLamSang() {
                     if (completed) {
                         autoAlert(
                             buildUnifiedCompletionMessage(
-                                model,
-                                saveResult
+                                model
                             )
                         );
                     } else {
