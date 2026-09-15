@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.47
+// @version      7.48
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -10837,6 +10837,109 @@ async function autoM2KhamLamSang() {
         );
     }
 
+
+    function ensureUnifiedAutoV748Styles() {
+        if (document.getElementById('medinet-auto-v748-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v748-style';
+        style.textContent = `
+            /* =====================================================
+               v7.48 — readable selection + bulletproof AUTO label
+               ===================================================== */
+
+            /* Text selection inside speech/report panel must stay readable. */
+            #medinet-auto-dock-panel ::selection {
+                background:#bae6fd !important;
+                color:#082f49 !important;
+                text-shadow:none !important;
+            }
+            #medinet-auto-dock-panel ::-moz-selection {
+                background:#bae6fd !important;
+                color:#082f49 !important;
+                text-shadow:none !important;
+            }
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .madp-body * {
+                -webkit-text-fill-color:currentColor !important;
+            }
+
+            /* Wheel layers are never allowed above the label hub. */
+            #medinet-auto-unified {
+                isolation:isolate !important;
+                overflow:visible !important;
+            }
+            #medinet-auto-unified .mau-shell { z-index:1 !important; }
+            #medinet-auto-unified .mau-ring  { z-index:4 !important; }
+            #medinet-auto-unified .mau-ring2 { z-index:5 !important; }
+            #medinet-auto-unified .mau-energy{ z-index:6 !important; }
+            #medinet-auto-unified .mau-flames,
+            #medinet-auto-unified .mau-sparks { z-index:7 !important; }
+
+            /* Opaque hub masks every spinning layer below it. */
+            #medinet-auto-unified .mau-core {
+                z-index:50 !important;
+                isolation:isolate !important;
+                overflow:hidden !important;
+                opacity:1 !important;
+                visibility:visible !important;
+                mix-blend-mode:normal !important;
+                background:
+                    radial-gradient(circle at 38% 28%,#2b607d 0 10%,#12394f 28%,#081b2a 64%,#020617 100%) !important;
+                box-shadow:
+                    inset 0 0 0 2px rgba(165,243,252,.62),
+                    inset 0 0 12px rgba(34,211,238,.22),
+                    0 0 0 1px rgba(2,6,23,.92),
+                    0 0 6px rgba(34,211,238,.28) !important;
+                filter:none !important;
+            }
+            #medinet-auto-unified .mau-core::before,
+            #medinet-auto-unified .mau-core::after {
+                z-index:0 !important;
+                pointer-events:none !important;
+                opacity:.45 !important;
+            }
+
+            /* Label gets its own top layer and can never inherit rotor opacity/filter. */
+            #medinet-auto-unified .mau-model,
+            #medinet-auto-unified .mau-auto {
+                position:relative !important;
+                z-index:99 !important;
+                opacity:1 !important;
+                visibility:visible !important;
+                display:block !important;
+                transform:none !important;
+                rotate:0deg !important;
+                filter:none !important;
+                mix-blend-mode:normal !important;
+                -webkit-text-fill-color:currentColor !important;
+                pointer-events:none !important;
+            }
+            #medinet-auto-unified .mau-model {
+                color:#ffffff !important;
+                font:900 17px/1 'Segoe UI',Roboto,Arial,sans-serif !important;
+                text-shadow:0 1px 2px #000,0 0 5px rgba(103,232,249,.78) !important;
+            }
+            #medinet-auto-unified .mau-auto {
+                color:#a5f3fc !important;
+                font:900 6px/1 'Segoe UI',Roboto,Arial,sans-serif !important;
+                letter-spacing:.85px !important;
+                text-shadow:0 1px 1px rgba(0,0,0,.9) !important;
+            }
+
+            /* Running effects only touch the rotor, never the hub/text. */
+            #medinet-auto-unified.mau-running .mau-core,
+            #medinet-auto-unified.mau-running .mau-model,
+            #medinet-auto-unified.mau-running .mau-auto {
+                animation:none !important;
+                transform:none !important;
+                rotate:0deg !important;
+                opacity:1 !important;
+                visibility:visible !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     const unifiedAutoRuntime = {
         running: false,
         model: '',
@@ -10880,6 +10983,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoV746Styles();
         ensureUnifiedAutoV747Styles();
+        ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
         ensureAutoDockContextWatcher();
         closeAutoDockPanel();
@@ -11196,6 +11300,8 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV744Styles();
         ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoV746Styles();
+        ensureUnifiedAutoV747Styles();
+        ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
 
         const button =
