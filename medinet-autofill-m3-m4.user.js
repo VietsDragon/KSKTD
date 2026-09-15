@@ -10672,6 +10672,71 @@ async function autoM2KhamLamSang() {
         document.head.appendChild(style);
     }
 
+    function ensureUnifiedAutoV746Styles() {
+        if (document.getElementById('medinet-auto-v746-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v746-style';
+        style.textContent = `
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation:mau746-wheel-spin .72s linear infinite !important;
+                will-change:rotate !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation:mau746-disc-spin .46s linear infinite !important;
+                will-change:rotate !important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity:1 !important;
+                animation:mau746-energy-spin .62s linear infinite !important;
+                will-change:rotate !important;
+            }
+            @keyframes mau746-wheel-spin { from { rotate:0deg; } to { rotate:360deg; } }
+            @keyframes mau746-disc-spin { from { rotate:0deg; } to { rotate:-360deg; } }
+            @keyframes mau746-energy-spin { from { rotate:0deg; } to { rotate:360deg; } }
+            #medinet-auto-unified .mau-core,
+            #medinet-auto-unified .mau-model,
+            #medinet-auto-unified .mau-auto { rotate:0deg !important; }
+
+            #medinet-auto-dock-panel {
+                max-height:none !important;
+                overflow:visible !important;
+                overscroll-behavior:none !important;
+                scrollbar-width:none !important;
+                width:fit-content !important;
+                min-width:0 !important;
+                max-width:min(330px,calc(100vw - 22px)) !important;
+            }
+            #medinet-auto-dock-panel::-webkit-scrollbar,
+            #medinet-auto-dock-panel .madp-body::-webkit-scrollbar { display:none !important; width:0 !important; height:0 !important; }
+            #medinet-auto-dock-panel .madp-body { max-height:none !important; overflow:visible !important; }
+            #medinet-auto-dock-panel .madp-close { display:none !important; }
+            #medinet-auto-dock-panel .madp-head { padding-right:16px !important; }
+            @media (max-width:640px) {
+                #medinet-auto-dock-panel { max-width:min(280px,calc(100vw - 14px)) !important; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function getAutoUiContextKey() {
+        let title = '';
+        try {
+            const el = document.querySelector('h2.hidden-web-title, .hidden-web-title');
+            title = el ? norm(el.innerText) : '';
+        } catch (e) {}
+        return `${location.href}|${title}|${getCurrentMedinetModel() || ''}`;
+    }
+
+    function ensureAutoDockContextWatcher() {
+        if (window.__medinetAutoDockContextWatcher) return;
+        window.__medinetAutoDockContextWatcher = window.setInterval(() => {
+            const panel = document.getElementById('medinet-auto-dock-panel');
+            if (!panel) return;
+            const initial = panel.dataset.contextKey || '';
+            if (initial && getAutoUiContextKey() !== initial) closeAutoDockPanel();
+        }, 450);
+    }
+
     const unifiedAutoRuntime = {
         running: false,
         model: '',
@@ -10713,38 +10778,35 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV742Styles();
         ensureUnifiedAutoV744Styles();
         ensureUnifiedAutoV745Styles();
+        ensureUnifiedAutoV746Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
-        ensureUnifiedAutoV744Styles();
-        ensureUnifiedAutoV745Styles();
+        ensureAutoDockContextWatcher();
         closeAutoDockPanel();
 
         const panel = document.createElement('div');
         panel.id = 'medinet-auto-dock-panel';
         panel.className = `madp-${type}`;
+        panel.dataset.contextKey = getAutoUiContextKey();
         panel.innerHTML =
             '<div class="madp-head">' +
                 '<span class="madp-pulse"></span>' +
                 '<div class="madp-title"></div>' +
-                '<button type="button" class="madp-close" aria-label="Đóng">×</button>' +
             '</div>' +
             '<div class="madp-body"></div>';
 
         panel.querySelector('.madp-title').textContent = String(title || 'Thông báo');
         panel.querySelector('.madp-body').innerHTML = String(bodyHtml || '');
-        panel.querySelector('.madp-close').addEventListener('click', closeAutoDockPanel);
         document.body.appendChild(panel);
         requestAnimationFrame(() => panel.classList.add('madp-show'));
 
         if (autoCloseMs > 0) {
             setTimeout(() => {
-                if (panel.isConnected) {
-                    panel.classList.remove('madp-show');
-                    setTimeout(() => panel.remove(), 180);
-                }
+                if (panel.isConnected) panel.remove();
             }, autoCloseMs);
         }
         return panel;
     }
+
 
     function autoAlert(message) {
 
@@ -10752,6 +10814,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoSpeechBubbleStyles();
         ensureUnifiedAutoV744Styles();
         ensureUnifiedAutoV745Styles();
+        ensureUnifiedAutoV746Styles();
 
         message = normalizeAutoMessageModel(
             message
@@ -10777,8 +10840,10 @@ async function autoM2KhamLamSang() {
             renderSpeechBodyHtml(parsed.body || fallbackBody),
             parsed.type,
             parsed.type === 'ok'
-                ? 5200
-                : 9000
+                ? 4200
+                : parsed.type === 'warn'
+                    ? 7000
+                    : 8000
         );
     }
 
@@ -11025,6 +11090,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV742Styles();
         ensureUnifiedAutoV744Styles();
         ensureUnifiedAutoV745Styles();
+        ensureUnifiedAutoV746Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
 
         const button =
