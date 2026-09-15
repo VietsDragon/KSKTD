@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.49
+// @version      7.50
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -11038,6 +11038,165 @@ async function autoM2KhamLamSang() {
             .trim();
     }
 
+
+    function ensureUnifiedAutoV750Styles() {
+        if (document.getElementById('medinet-auto-v750-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v750-style';
+        style.textContent = `
+            /* =====================================================
+               v7.50 — ALWAYS-ALIVE WHEEL + BLUE PLASMA SPARKS
+               Idle = slow rotation. Running = fast rotation + sparks.
+               ===================================================== */
+
+            /* Keep the central label absolutely stable/readable. */
+            #medinet-auto-unified .mau-core,
+            #medinet-auto-unified .mau-model,
+            #medinet-auto-unified .mau-auto {
+                rotate: 0deg !important;
+                transform: none !important;
+                animation: none !important;
+            }
+
+            /* IDLE: the wheel is always alive. Use rotate, not transform,
+               so legacy transform:...!important rules cannot freeze it. */
+            #medinet-auto-unified .mau-ring {
+                animation: mau750-idle-wheel 4.8s linear infinite !important;
+                transform: none !important;
+                transform-origin: 50% 50% !important;
+                will-change: rotate;
+            }
+            #medinet-auto-unified .mau-ring2 {
+                animation: mau750-idle-disc 7.2s linear infinite !important;
+                transform: none !important;
+                transform-origin: 50% 50% !important;
+                will-change: rotate;
+            }
+            @keyframes mau750-idle-wheel {
+                from { rotate: 0deg; }
+                to   { rotate: 360deg; }
+            }
+            @keyframes mau750-idle-disc {
+                from { rotate: 0deg; }
+                to   { rotate: -360deg; }
+            }
+
+            /* Running = clearly faster, counter-rotating mechanics. */
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation: mau750-run-wheel .58s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation: mau750-run-disc .86s linear infinite !important;
+            }
+            @keyframes mau750-run-wheel {
+                from { rotate: 0deg; }
+                to   { rotate: 360deg; }
+            }
+            @keyframes mau750-run-disc {
+                from { rotate: 0deg; }
+                to   { rotate: -360deg; }
+            }
+
+            /* No orange fire. Blue plasma dots orbit only while AUTO is active. */
+            #medinet-auto-unified .mau-flames {
+                display: none !important;
+            }
+            #medinet-auto-unified .mau-sparks {
+                display: block !important;
+                position: absolute !important;
+                inset: -7px !important;
+                z-index: 30 !important;
+                pointer-events: none !important;
+                opacity: 0 !important;
+                visibility: hidden !important;
+                transform: none !important;
+                rotate: 0deg !important;
+            }
+            #medinet-auto-unified .mau-sparks i {
+                display: block !important;
+                position: absolute !important;
+                left: 50% !important;
+                top: 50% !important;
+                width: 4px !important;
+                height: 4px !important;
+                margin: -2px 0 0 -2px !important;
+                border-radius: 50% !important;
+                background: #bffcff !important;
+                border: 0 !important;
+                box-shadow:
+                    0 0 4px #fff,
+                    0 0 8px #67e8f9,
+                    0 0 14px #22d3ee,
+                    0 0 20px rgba(14,165,233,.75) !important;
+                opacity: 0 !important;
+                filter: none !important;
+            }
+
+            /* Five different radii/angles = irregular electric embers, not a halo. */
+            #medinet-auto-unified .mau-sparks i:nth-child(1) { transform: rotate(12deg)  translateY(-35px) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(2) { transform: rotate(78deg)  translateY(-32px) scale(.75) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(3) { transform: rotate(161deg) translateY(-36px) scale(.62) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(4) { transform: rotate(246deg) translateY(-33px) scale(.82) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(5) { transform: rotate(319deg) translateY(-37px) scale(.55) !important; }
+
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity: 1 !important;
+                visibility: visible !important;
+                animation: mau750-spark-orbit .72s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i {
+                animation: mau750-spark-pulse .48s ease-in-out infinite alternate !important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(2) { animation-delay: -.16s !important; }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(3) { animation-delay: -.31s !important; }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(4) { animation-delay: -.23s !important; }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(5) { animation-delay: -.39s !important; }
+
+            @keyframes mau750-spark-orbit {
+                from { rotate: 0deg; }
+                to   { rotate: 360deg; }
+            }
+            @keyframes mau750-spark-pulse {
+                0%   { opacity:.22; filter:brightness(.85); }
+                45%  { opacity:1; filter:brightness(1.9); }
+                100% { opacity:.45; filter:brightness(1.15); }
+            }
+
+            /* Energy ring becomes cyan while running, not orange friction fire. */
+            #medinet-auto-unified .mau-energy {
+                display:block !important;
+                opacity:0 !important;
+                background: conic-gradient(
+                    from 0deg,
+                    transparent 0 296deg,
+                    rgba(255,255,255,.95) 300deg 305deg,
+                    #a5f3fc 306deg 317deg,
+                    #22d3ee 318deg 330deg,
+                    transparent 334deg 360deg
+                ) !important;
+                filter: drop-shadow(0 0 3px #67e8f9) drop-shadow(0 0 7px rgba(34,211,238,.75)) !important;
+                transform:none !important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity:1 !important;
+                animation:mau750-energy .5s linear infinite !important;
+            }
+            @keyframes mau750-energy {
+                from { rotate:0deg; }
+                to   { rotate:360deg; }
+            }
+
+            /* Idle glow is subtle; active glow is clearly stronger. */
+            #medinet-auto-unified {
+                filter: drop-shadow(0 2px 5px rgba(2,6,23,.34)) drop-shadow(0 0 3px rgba(34,211,238,.18)) !important;
+            }
+            #medinet-auto-unified.mau-running {
+                filter: drop-shadow(0 2px 5px rgba(2,6,23,.38)) drop-shadow(0 0 8px rgba(34,211,238,.72)) !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     function closeAutoDockPanel() {
         const old = document.getElementById('medinet-auto-dock-panel');
         if (old) old.remove();
@@ -11052,6 +11211,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV747Styles();
         ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoV749Styles();
+        ensureUnifiedAutoV750Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
         ensureAutoDockContextWatcher();
         closeAutoDockPanel();
@@ -11095,6 +11255,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV747Styles();
         ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoV749Styles();
+        ensureUnifiedAutoV750Styles();
 
         message = normalizeAutoMessageModel(
             message
@@ -11374,6 +11535,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV747Styles();
         ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoV749Styles();
+        ensureUnifiedAutoV750Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
 
         const button =
