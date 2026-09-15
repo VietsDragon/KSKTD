@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.43
+// @version      7.44
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -9913,6 +9913,7 @@ async function autoM2KhamLamSang() {
 
     function showRunningSpeechBubble(message) {
         ensureUnifiedAutoSpeechBubbleStyles();
+        ensureUnifiedAutoV744Styles();
         const model = unifiedAutoRuntime.model || getCurrentMedinetModel() || 'AUTO';
         const parsed = parseAutoNoticeMessage(message || (`⏳ ${model} · Đang AUTO`), `${model} · Đang AUTO`);
         const title = parsed.title || `${model} · Đang AUTO`;
@@ -9926,6 +9927,448 @@ async function autoM2KhamLamSang() {
             'info',
             0
         );
+    }
+
+
+    function ensureUnifiedAutoV744Styles() {
+
+        if (document.getElementById('medinet-auto-v744-style')) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v744-style';
+        style.textContent = `
+            /* =====================================================
+               V7.44 - AUTO WHEEL + MANGA SPEECH BUBBLE
+               Lớp cuối cùng: chủ động ghi đè toàn bộ UI cũ.
+               ===================================================== */
+
+            #medinet-auto-unified {
+                width: 58px !important;
+                height: 58px !important;
+                right: 14px !important;
+                bottom: 6px !important;
+                border: 0 !important;
+                padding: 0 !important;
+                border-radius: 50% !important;
+                background: transparent !important;
+                box-shadow: 0 7px 16px rgba(15,23,42,.26) !important;
+                overflow: visible !important;
+                transform: none !important;
+                filter: none !important;
+                isolation: isolate !important;
+            }
+
+            #medinet-auto-unified:hover:not(:disabled) {
+                transform: scale(1.045) !important;
+                filter: none !important;
+            }
+
+            #medinet-auto-unified:active:not(:disabled) {
+                transform: scale(.97) !important;
+            }
+
+            /* LỐP - nhìn như bánh xe, không như radar/đồng hồ */
+            #medinet-auto-unified .mau-shell {
+                position: absolute !important;
+                inset: 0 !important;
+                border-radius: 50% !important;
+                background:
+                    radial-gradient(circle at 50% 50%, transparent 0 64%, rgba(0,0,0,.25) 65% 67%, transparent 68%),
+                    repeating-conic-gradient(
+                        from 2deg,
+                        #111827 0deg 8deg,
+                        #263244 8deg 13deg,
+                        #0b1220 13deg 20deg
+                    ) !important;
+                border: 2px solid #050a12 !important;
+                box-shadow:
+                    inset 0 0 0 3px rgba(71,85,105,.60),
+                    inset 0 0 0 6px rgba(2,6,23,.92),
+                    0 2px 7px rgba(2,6,23,.42) !important;
+                animation: none !important;
+                transform: none !important;
+                opacity: 1 !important;
+            }
+
+            /* Mâm 8 chấu */
+            #medinet-auto-unified .mau-ring {
+                position: absolute !important;
+                inset: 8px !important;
+                border-radius: 50% !important;
+                background:
+                    radial-gradient(circle, transparent 0 25%, #0b1724 26% 33%, transparent 34%),
+                    repeating-conic-gradient(
+                        from 0deg,
+                        #70e8ff 0deg 5deg,
+                        #164e63 5deg 12deg,
+                        transparent 12deg 40deg,
+                        #38bdf8 40deg 45deg
+                    ) !important;
+                -webkit-mask: radial-gradient(circle, transparent 0 30%, #000 31% 100%) !important;
+                mask: radial-gradient(circle, transparent 0 30%, #000 31% 100%) !important;
+                border: 1px solid rgba(125,211,252,.80) !important;
+                box-shadow:
+                    inset 0 0 8px rgba(34,211,238,.34),
+                    0 0 5px rgba(34,211,238,.28) !important;
+                animation: none !important;
+                opacity: 1 !important;
+                transform: none !important;
+            }
+
+            /* vòng mâm phụ - tạo chiều sâu cơ khí */
+            #medinet-auto-unified .mau-ring2 {
+                position: absolute !important;
+                inset: 13px !important;
+                border-radius: 50% !important;
+                background:
+                    repeating-conic-gradient(
+                        from 22.5deg,
+                        rgba(226,232,240,.92) 0deg 3deg,
+                        rgba(30,41,59,.95) 3deg 12deg,
+                        transparent 12deg 42deg,
+                        rgba(148,163,184,.78) 42deg 45deg
+                    ) !important;
+                -webkit-mask: radial-gradient(circle, transparent 0 45%, #000 46% 100%) !important;
+                mask: radial-gradient(circle, transparent 0 45%, #000 46% 100%) !important;
+                border: 0 !important;
+                opacity: .92 !important;
+                animation: none !important;
+                transform: none !important;
+                box-shadow: none !important;
+            }
+
+            /* hub */
+            #medinet-auto-unified .mau-core {
+                position: absolute !important;
+                inset: 16px !important;
+                border-radius: 50% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 0 !important;
+                background:
+                    radial-gradient(circle at 38% 30%, #1e4760 0, #0b2233 38%, #07111d 72%, #020617 100%) !important;
+                border: 1px solid rgba(186,230,253,.92) !important;
+                box-shadow:
+                    inset 0 0 0 2px rgba(14,116,144,.42),
+                    inset 0 0 10px rgba(56,189,248,.34),
+                    0 0 5px rgba(56,189,248,.32) !important;
+                transform: none !important;
+                animation: none !important;
+                z-index: 6 !important;
+            }
+
+            #medinet-auto-unified .mau-core::after {
+                display: none !important;
+            }
+
+            #medinet-auto-unified .mau-model {
+                color: #f8fdff !important;
+                font: 900 16px/1 'Segoe UI', Roboto, Arial, sans-serif !important;
+                letter-spacing: -.4px !important;
+                text-shadow: 0 1px 2px #000, 0 0 5px rgba(103,232,249,.58) !important;
+                transform: none !important;
+            }
+
+            #medinet-auto-unified .mau-auto {
+                margin-top: 2px !important;
+                color: #8be9ff !important;
+                font: 800 6px/1 'Segoe UI', Roboto, Arial, sans-serif !important;
+                letter-spacing: .8px !important;
+                text-shadow: 0 1px 2px #000 !important;
+                transform: none !important;
+            }
+
+            /* bỏ hoàn toàn lửa/corona cũ */
+            #medinet-auto-unified .mau-flames {
+                display: none !important;
+            }
+
+            /* Điểm ma sát - chỉ hiện khi chạy */
+            #medinet-auto-unified .mau-energy {
+                position: absolute !important;
+                inset: -3px !important;
+                border-radius: 50% !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                z-index: 7 !important;
+                background:
+                    conic-gradient(
+                        from 0deg,
+                        transparent 0deg 28deg,
+                        rgba(255,255,255,.98) 30deg 32deg,
+                        #fde047 33deg 36deg,
+                        #fb923c 37deg 40deg,
+                        transparent 43deg 181deg,
+                        rgba(255,255,255,.96) 184deg 186deg,
+                        #fde047 187deg 190deg,
+                        #f97316 191deg 194deg,
+                        transparent 198deg 360deg
+                    ) !important;
+                -webkit-mask: radial-gradient(circle, transparent 0 77%, #000 78% 91%, transparent 92%) !important;
+                mask: radial-gradient(circle, transparent 0 77%, #000 78% 91%, transparent 92%) !important;
+                filter: drop-shadow(0 0 3px rgba(251,146,60,.9)) !important;
+                animation: none !important;
+            }
+
+            #medinet-auto-unified .mau-sparks {
+                position: absolute !important;
+                inset: -12px !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                z-index: 8 !important;
+                animation: none !important;
+            }
+
+            #medinet-auto-unified .mau-sparks i {
+                position: absolute !important;
+                left: 50% !important;
+                top: 50% !important;
+                width: 2px !important;
+                height: 8px !important;
+                border-radius: 2px !important;
+                background: linear-gradient(#fff,#fde047 38%,#fb923c 72%,transparent) !important;
+                transform-origin: 50% 0 !important;
+                box-shadow: 0 0 4px rgba(251,146,60,.82) !important;
+                animation: none !important;
+            }
+
+            #medinet-auto-unified .mau-sparks i:nth-child(1) { transform: rotate(28deg) translateY(-37px) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(2) { transform: rotate(64deg) translateY(-38px) scale(.72) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(3) { transform: rotate(205deg) translateY(-37px) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(4) { transform: rotate(242deg) translateY(-38px) scale(.7) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(5) { transform: rotate(330deg) translateY(-36px) scale(.55) !important; }
+
+            /* RUNNING: lốp đứng yên, MÂM quay => nhìn đúng bánh xe hơn */
+            #medinet-auto-unified.mau-running .mau-shell {
+                animation: none !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation: mau744-wheel-spin .72s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation: mau744-wheel-spin-rev 1.05s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity: 1 !important;
+                animation: mau744-friction 1.1s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity: 1 !important;
+                animation: mau744-spark-flicker .24s steps(2,end) infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-core {
+                animation: mau744-core-pulse .85s ease-in-out infinite alternate !important;
+            }
+            #medinet-auto-unified.mau-running .mau-auto::after {
+                content: ' •' !important;
+                animation: mau744-dot .65s steps(2,end) infinite !important;
+            }
+
+            @keyframes mau744-wheel-spin { to { transform: rotate(360deg); } }
+            @keyframes mau744-wheel-spin-rev { to { transform: rotate(-360deg); } }
+            @keyframes mau744-friction { to { transform: rotate(360deg); } }
+            @keyframes mau744-spark-flicker {
+                0%,100% { opacity:.28; filter:brightness(.9); }
+                45% { opacity:1; filter:brightness(1.45); }
+            }
+            @keyframes mau744-core-pulse {
+                from { box-shadow: inset 0 0 0 2px rgba(14,116,144,.42), inset 0 0 8px rgba(56,189,248,.26), 0 0 4px rgba(56,189,248,.22); }
+                to   { box-shadow: inset 0 0 0 2px rgba(34,211,238,.58), inset 0 0 13px rgba(56,189,248,.48), 0 0 9px rgba(34,211,238,.46); }
+            }
+            @keyframes mau744-dot { 50% { opacity:.15; } }
+
+            /* Badge cảnh báo: nằm ngoài nhưng không làm biến dạng bánh xe */
+            #medinet-auto-unified .mau-warning {
+                width: 28px !important;
+                height: 28px !important;
+                right: -7px !important;
+                top: -7px !important;
+                z-index: 12 !important;
+                border-radius: 50% !important;
+                background: transparent !important;
+            }
+            #medinet-auto-unified .mau-warning::before {
+                width: 17px !important;
+                height: 17px !important;
+                right: 3px !important;
+                top: 3px !important;
+                font-size: 11px !important;
+                border: 2px solid #111827 !important;
+                background: #f59e0b !important;
+                color:#111827 !important;
+                box-shadow: 0 2px 5px rgba(15,23,42,.28) !important;
+            }
+
+            /* =====================================================
+               MANGA SPEECH BUBBLE - organic, không card, không trượt
+               ===================================================== */
+            #medinet-auto-dock-panel {
+                position: fixed !important;
+                right: 22px !important;
+                bottom: 78px !important;
+                width: min(338px, calc(100vw - 38px)) !important;
+                max-height: min(56vh, 450px) !important;
+                overflow: auto !important;
+                padding: 0 !important;
+                border: 2.5px solid #111827 !important;
+                border-radius: 48% 52% 46% 54% / 18% 20% 17% 21% !important;
+                background:
+                    radial-gradient(circle at 16px 16px, rgba(15,23,42,.025) 0 1px, transparent 1.5px) 0 0/8px 8px,
+                    #fff !important;
+                color:#111827 !important;
+                box-shadow: 5px 7px 0 rgba(17,24,39,.13), 0 14px 30px rgba(15,23,42,.18) !important;
+                opacity: 0 !important;
+                transform: scale(.94) !important;
+                transform-origin: 88% 100% !important;
+                transition: opacity .12s ease, transform .12s ease !important;
+                z-index: 9999998 !important;
+                isolation: isolate !important;
+                font-family: 'Segoe UI',Roboto,Arial,sans-serif !important;
+            }
+
+            #medinet-auto-dock-panel.madp-show {
+                opacity: 1 !important;
+                transform: scale(1) !important;
+            }
+
+            /* đuôi thoại manga 2 lớp */
+            #medinet-auto-dock-panel::before {
+                content:'' !important;
+                position:absolute !important;
+                right:28px !important;
+                bottom:-20px !important;
+                width:0 !important;
+                height:0 !important;
+                border-left:8px solid transparent !important;
+                border-right:18px solid transparent !important;
+                border-top:24px solid #111827 !important;
+                transform:rotate(-12deg) !important;
+                z-index:0 !important;
+            }
+            #medinet-auto-dock-panel::after {
+                content:'' !important;
+                position:absolute !important;
+                right:31px !important;
+                bottom:-15px !important;
+                width:0 !important;
+                height:0 !important;
+                border-left:7px solid transparent !important;
+                border-right:15px solid transparent !important;
+                border-top:20px solid #fff !important;
+                transform:rotate(-12deg) !important;
+                z-index:1 !important;
+            }
+
+            #medinet-auto-dock-panel .madp-head {
+                position:relative !important;
+                top:auto !important;
+                display:flex !important;
+                align-items:center !important;
+                gap:8px !important;
+                padding:15px 28px 4px 24px !important;
+                border:0 !important;
+                background:transparent !important;
+                z-index:3 !important;
+            }
+
+            #medinet-auto-dock-panel .madp-pulse {
+                width:8px !important;
+                height:8px !important;
+                flex:none !important;
+                border-radius:50% !important;
+                background:#111827 !important;
+                box-shadow:none !important;
+            }
+
+            #medinet-auto-dock-panel .madp-title {
+                color:#111827 !important;
+                font:900 14px/1.2 'Segoe UI',Roboto,Arial,sans-serif !important;
+                letter-spacing:.1px !important;
+            }
+
+            #medinet-auto-dock-panel .madp-close {
+                position:absolute !important;
+                right:12px !important;
+                top:9px !important;
+                width:24px !important;
+                height:24px !important;
+                border:0 !important;
+                border-radius:50% !important;
+                background:transparent !important;
+                color:#111827 !important;
+                font:900 19px/1 sans-serif !important;
+                box-shadow:none !important;
+            }
+
+            #medinet-auto-dock-panel .madp-body {
+                position:relative !important;
+                z-index:3 !important;
+                padding:5px 25px 18px 24px !important;
+                color:#1f2937 !important;
+                font:600 12.8px/1.48 'Segoe UI',Roboto,Arial,sans-serif !important;
+                background:transparent !important;
+            }
+
+            #medinet-auto-dock-panel .madp-speech-line {
+                margin-bottom:3px !important;
+            }
+
+            #medinet-auto-dock-panel .madp-running-note {
+                margin-top:9px !important;
+                padding:6px 0 0 !important;
+                border:0 !important;
+                border-top:1px dashed rgba(17,24,39,.28) !important;
+                border-radius:0 !important;
+                background:transparent !important;
+                color:#111827 !important;
+                font-weight:800 !important;
+            }
+
+            #medinet-auto-dock-panel.madp-warn {
+                background:
+                    radial-gradient(circle at 16px 16px, rgba(120,53,15,.035) 0 1px, transparent 1.5px) 0 0/8px 8px,
+                    #fffaf0 !important;
+                border-color:#7c2d12 !important;
+            }
+            #medinet-auto-dock-panel.madp-warn::before { border-top-color:#7c2d12 !important; }
+            #medinet-auto-dock-panel.madp-warn::after { border-top-color:#fffaf0 !important; }
+
+            #medinet-auto-dock-panel.madp-error {
+                background:#fff5f5 !important;
+                border-color:#991b1b !important;
+            }
+            #medinet-auto-dock-panel.madp-error::before { border-top-color:#991b1b !important; }
+            #medinet-auto-dock-panel.madp-error::after { border-top-color:#fff5f5 !important; }
+
+            /* Không dùng lại card/toast cũ */
+            #medinet-auto-notice,
+            .mnm-toast {
+                display:none !important;
+            }
+
+            @media (max-width:640px) {
+                #medinet-auto-unified {
+                    width:54px !important;
+                    height:54px !important;
+                    right:9px !important;
+                    bottom:5px !important;
+                }
+                #medinet-auto-unified .mau-core { inset:15px !important; }
+                #medinet-auto-unified .mau-model { font-size:15px !important; }
+                #medinet-auto-dock-panel {
+                    right:10px !important;
+                    bottom:70px !important;
+                    width:min(300px,calc(100vw - 20px)) !important;
+                }
+                #medinet-auto-dock-panel::before { right:22px !important; }
+                #medinet-auto-dock-panel::after { right:25px !important; }
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     const unifiedAutoRuntime = {
@@ -9968,6 +10411,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoV742Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
+        ensureUnifiedAutoV744Styles();
         closeAutoDockPanel();
 
         const panel = document.createElement('div');
@@ -10002,6 +10446,7 @@ async function autoM2KhamLamSang() {
 
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoSpeechBubbleStyles();
+        ensureUnifiedAutoV744Styles();
 
         message = normalizeAutoMessageModel(
             message
