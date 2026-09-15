@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.44
+// @version      7.45
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -9913,21 +9913,16 @@ async function autoM2KhamLamSang() {
 
     function showRunningSpeechBubble(message) {
         ensureUnifiedAutoSpeechBubbleStyles();
-        ensureUnifiedAutoV744Styles();
+        ensureUnifiedAutoV745Styles();
         const model = unifiedAutoRuntime.model || getCurrentMedinetModel() || 'AUTO';
-        const parsed = parseAutoNoticeMessage(message || (`⏳ ${model} · Đang AUTO`), `${model} · Đang AUTO`);
-        const title = parsed.title || `${model} · Đang AUTO`;
-        const bodyText = parsed.body || parsed.firstLine || 'Đang xử lý, vui lòng chờ...';
         showAutoDockPanel(
-            title,
-            renderSpeechBodyHtml(
-                bodyText,
-                '<div class="madp-running-note">⏳ Đang chạy · Vui lòng chờ · Không chuyển tab.</div>'
-            ),
+            `${model} đang AUTO…`,
+            renderSpeechBodyHtml('Đang xử lý · Vui lòng chờ · Đừng chuyển tab.'),
             'info',
             0
         );
     }
+
 
 
     function ensureUnifiedAutoV744Styles() {
@@ -10371,6 +10366,312 @@ async function autoM2KhamLamSang() {
         document.head.appendChild(style);
     }
 
+
+    function ensureUnifiedAutoV745Styles() {
+        if (document.getElementById('medinet-auto-v745-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v745-style';
+        style.textContent = `
+            /* =====================================================
+               V7.45 - WHEEL REBUILD + TRUE MANGA SPEECH BUBBLE
+               Final override. No slide animation.
+               ===================================================== */
+
+            #medinet-auto-unified {
+                width:60px !important;
+                height:60px !important;
+                right:10px !important;
+                bottom:2px !important;
+                overflow:visible !important;
+                border-radius:50% !important;
+                background:transparent !important;
+                box-shadow:0 5px 14px rgba(2,6,23,.30) !important;
+            }
+
+            /* Tire: substantial dark rubber + visible tread. */
+            #medinet-auto-unified .mau-shell {
+                inset:0 !important;
+                z-index:1 !important;
+                border:2px solid #020617 !important;
+                background:
+                    repeating-conic-gradient(
+                        from 0deg,
+                        #111827 0deg 7deg,
+                        #334155 7deg 10deg,
+                        #0f172a 10deg 18deg
+                    ) !important;
+                box-shadow:
+                    inset 0 0 0 3px #020617,
+                    inset 0 0 0 5px #475569,
+                    inset 0 0 10px rgba(0,0,0,.85),
+                    0 2px 5px rgba(2,6,23,.42) !important;
+                animation:none !important;
+            }
+
+            /* Real wheel face: 5 spokes, ONE cyan spoke => rotation is obvious. */
+            #medinet-auto-unified .mau-ring {
+                inset:7px !important;
+                z-index:3 !important;
+                border-radius:50% !important;
+                border:1px solid #7dd3fc !important;
+                background:
+                    conic-gradient(
+                        from -4deg,
+                        #67e8f9 0deg 10deg,
+                        transparent 10deg 70deg,
+                        #94a3b8 70deg 80deg,
+                        transparent 80deg 142deg,
+                        #64748b 142deg 152deg,
+                        transparent 152deg 214deg,
+                        #94a3b8 214deg 224deg,
+                        transparent 224deg 286deg,
+                        #64748b 286deg 296deg,
+                        transparent 296deg 360deg
+                    ),
+                    radial-gradient(circle at 50% 50%, #0f172a 0 31%, #1e293b 32% 41%, transparent 42%) !important;
+                -webkit-mask:none !important;
+                mask:none !important;
+                box-shadow:
+                    inset 0 0 0 3px rgba(15,23,42,.72),
+                    inset 0 0 8px rgba(56,189,248,.25),
+                    0 0 4px rgba(34,211,238,.20) !important;
+                transform:rotate(0deg) !important;
+                animation:none !important;
+                transform-origin:50% 50% !important;
+            }
+
+            /* Brake disc: static perforated-looking ring, gives depth. */
+            #medinet-auto-unified .mau-ring2 {
+                inset:11px !important;
+                z-index:4 !important;
+                border:2px dotted rgba(203,213,225,.72) !important;
+                border-radius:50% !important;
+                background:radial-gradient(circle, transparent 0 55%, rgba(148,163,184,.20) 56% 72%, transparent 73%) !important;
+                -webkit-mask:none !important;
+                mask:none !important;
+                box-shadow:none !important;
+                opacity:.82 !important;
+                transform:none !important;
+                animation:none !important;
+            }
+
+            /* Hub enlarged so M2-M6 always readable. */
+            #medinet-auto-unified .mau-core {
+                inset:13px !important;
+                z-index:20 !important;
+                border:2px solid rgba(186,230,253,.96) !important;
+                background:radial-gradient(circle at 38% 28%, #24516c 0 12%, #0e2c40 35%, #071522 72%, #020617 100%) !important;
+                box-shadow:
+                    inset 0 0 0 2px rgba(14,116,144,.50),
+                    inset 0 0 10px rgba(34,211,238,.28),
+                    0 0 5px rgba(34,211,238,.26) !important;
+                animation:none !important;
+                transform:none !important;
+                pointer-events:none !important;
+            }
+            #medinet-auto-unified .mau-model {
+                position:relative !important;
+                z-index:22 !important;
+                display:block !important;
+                color:#ffffff !important;
+                font:900 17px/1 'Segoe UI',Roboto,Arial,sans-serif !important;
+                letter-spacing:-.6px !important;
+                text-shadow:0 1px 2px #000,0 0 6px rgba(103,232,249,.68) !important;
+                opacity:1 !important;
+                visibility:visible !important;
+            }
+            #medinet-auto-unified .mau-auto {
+                position:relative !important;
+                z-index:22 !important;
+                display:block !important;
+                margin-top:2px !important;
+                color:#a5f3fc !important;
+                font:900 6px/1 'Segoe UI',Roboto,Arial,sans-serif !important;
+                letter-spacing:.9px !important;
+                opacity:1 !important;
+            }
+
+            /* Remove every legacy flame/spark treatment. */
+            #medinet-auto-unified .mau-flames,
+            #medinet-auto-unified .mau-sparks { display:none !important; }
+
+            /* A slim friction arc rides the rim while running, below the text. */
+            #medinet-auto-unified .mau-energy {
+                display:block !important;
+                inset:-2px !important;
+                z-index:9 !important;
+                opacity:0 !important;
+                border-radius:50% !important;
+                background:conic-gradient(from 0deg, transparent 0 310deg, #fff 314deg 318deg, #fde047 319deg 326deg, #fb923c 327deg 334deg, transparent 338deg 360deg) !important;
+                -webkit-mask:radial-gradient(circle,transparent 0 79%,#000 80% 91%,transparent 92%) !important;
+                mask:radial-gradient(circle,transparent 0 79%,#000 80% 91%,transparent 92%) !important;
+                filter:drop-shadow(0 0 3px rgba(251,146,60,.78)) !important;
+                animation:none !important;
+            }
+
+            /* Running: wheel face rotates clearly; hub remains fixed/readable. */
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation:mau745-wheel 1.05s cubic-bezier(.42,0,.58,1) infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation:mau745-disc .68s linear infinite reverse !important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity:1 !important;
+                animation:mau745-friction .78s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-core {
+                animation:mau745-hub .8s ease-in-out infinite alternate !important;
+            }
+            @keyframes mau745-wheel {
+                0%   { transform:rotate(0deg); }
+                35%  { transform:rotate(132deg); }
+                70%  { transform:rotate(272deg); }
+                100% { transform:rotate(360deg); }
+            }
+            @keyframes mau745-disc { to { transform:rotate(360deg); } }
+            @keyframes mau745-friction { to { transform:rotate(360deg); } }
+            @keyframes mau745-hub {
+                from { filter:brightness(.96); }
+                to   { filter:brightness(1.14); }
+            }
+
+            /* =====================================================
+               Manga speech bubble: compact, classic oval balloon.
+               No slide. No stretched organic card. No duplicated text.
+               ===================================================== */
+            #medinet-auto-dock-panel {
+                position:fixed !important;
+                right:16px !important;
+                bottom:72px !important;
+                width:auto !important;
+                min-width:210px !important;
+                max-width:min(310px,calc(100vw - 28px)) !important;
+                max-height:min(48vh,360px) !important;
+                overflow:auto !important;
+                border:2.5px solid #111827 !important;
+                border-radius:30px !important;
+                background:#fff !important;
+                color:#111827 !important;
+                box-shadow:4px 5px 0 rgba(17,24,39,.12),0 10px 24px rgba(15,23,42,.16) !important;
+                opacity:1 !important;
+                transform:none !important;
+                transition:none !important;
+                animation:mau745-pop .10s ease-out both !important;
+                transform-origin:88% 100% !important;
+                z-index:9999998 !important;
+                isolation:isolate !important;
+            }
+            #medinet-auto-dock-panel.madp-show {
+                opacity:1 !important;
+                transform:none !important;
+            }
+            @keyframes mau745-pop {
+                from { opacity:0; scale:.96; }
+                to   { opacity:1; scale:1; }
+            }
+
+            /* Pointed manga tail aiming at AUTO wheel. */
+            #medinet-auto-dock-panel::before {
+                content:'' !important;
+                position:absolute !important;
+                right:22px !important;
+                bottom:-18px !important;
+                width:28px !important;
+                height:22px !important;
+                background:#111827 !important;
+                clip-path:polygon(5% 0,100% 0,92% 12%,20% 100%) !important;
+                z-index:0 !important;
+                transform:none !important;
+                border:0 !important;
+            }
+            #medinet-auto-dock-panel::after {
+                content:'' !important;
+                position:absolute !important;
+                right:24px !important;
+                bottom:-13px !important;
+                width:23px !important;
+                height:17px !important;
+                background:#fff !important;
+                clip-path:polygon(4% 0,100% 0,91% 11%,20% 100%) !important;
+                z-index:1 !important;
+                transform:none !important;
+                border:0 !important;
+            }
+
+            #medinet-auto-dock-panel .madp-head {
+                position:relative !important;
+                display:flex !important;
+                align-items:center !important;
+                gap:7px !important;
+                padding:12px 35px 3px 16px !important;
+                border:0 !important;
+                background:transparent !important;
+                min-height:0 !important;
+            }
+            #medinet-auto-dock-panel .madp-pulse {
+                width:7px !important;height:7px !important;
+                border-radius:50% !important;
+                background:#111827 !important;
+                box-shadow:none !important;
+                flex:none !important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                color:#111827 !important;
+                font:900 13.5px/1.2 'Segoe UI',Roboto,Arial,sans-serif !important;
+            }
+            #medinet-auto-dock-panel .madp-close {
+                position:absolute !important;
+                right:10px !important;
+                top:7px !important;
+                width:24px !important;height:24px !important;
+                border:0 !important;background:transparent !important;
+                color:#111827 !important;
+                font:900 18px/1 sans-serif !important;
+                box-shadow:none !important;
+            }
+            #medinet-auto-dock-panel .madp-body {
+                padding:4px 17px 13px 16px !important;
+                background:transparent !important;
+                color:#1f2937 !important;
+                font:600 12.5px/1.45 'Segoe UI',Roboto,Arial,sans-serif !important;
+            }
+            #medinet-auto-dock-panel .madp-running-note { display:none !important; }
+            #medinet-auto-dock-panel .madp-speech-line {
+                display:block !important;
+                margin:0 0 3px !important;
+            }
+            #medinet-auto-dock-panel.madp-warn {
+                background:#fffaf0 !important;
+                border-color:#7c2d12 !important;
+            }
+            #medinet-auto-dock-panel.madp-warn::before { background:#7c2d12 !important; }
+            #medinet-auto-dock-panel.madp-warn::after { background:#fffaf0 !important; }
+            #medinet-auto-dock-panel.madp-error {
+                background:#fff5f5 !important;
+                border-color:#991b1b !important;
+            }
+            #medinet-auto-dock-panel.madp-error::before { background:#991b1b !important; }
+            #medinet-auto-dock-panel.madp-error::after { background:#fff5f5 !important; }
+
+            @media (max-width:640px) {
+                #medinet-auto-unified {
+                    width:56px !important;height:56px !important;
+                    right:7px !important;bottom:1px !important;
+                }
+                #medinet-auto-unified .mau-core { inset:12px !important; }
+                #medinet-auto-unified .mau-model { font-size:16px !important; }
+                #medinet-auto-dock-panel {
+                    right:8px !important;
+                    bottom:66px !important;
+                    min-width:190px !important;
+                    max-width:min(285px,calc(100vw - 16px)) !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     const unifiedAutoRuntime = {
         running: false,
         model: '',
@@ -10410,8 +10711,11 @@ async function autoM2KhamLamSang() {
     function showAutoDockPanel(title, bodyHtml, type = 'info', autoCloseMs = 0) {
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoV742Styles();
+        ensureUnifiedAutoV744Styles();
+        ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
         ensureUnifiedAutoV744Styles();
+        ensureUnifiedAutoV745Styles();
         closeAutoDockPanel();
 
         const panel = document.createElement('div');
@@ -10447,6 +10751,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoSpeechBubbleStyles();
         ensureUnifiedAutoV744Styles();
+        ensureUnifiedAutoV745Styles();
 
         message = normalizeAutoMessageModel(
             message
@@ -10685,46 +10990,24 @@ async function autoM2KhamLamSang() {
 
     function buildUnifiedCompletionMessage(model) {
 
-        let detail =
-            String(
-                unifiedAutoRuntime.lastMessage || ''
-            )
-            .split('\n')
-            .slice(1)
-            .join('\n')
-            .trim();
-
-        // AUTO chỉ điền dữ liệu. KHÔNG tự lưu.
-        // Loại câu nhắc cũ để thay bằng cảnh báo lưu rõ ràng hơn bên dưới.
-        detail = detail
-            .replace(/Vui lòng kiểm tra trước khi lưu\.?/gi, '')
-            .replace(/Vui Lòng Kiểm Tra Trước Khi Lưu\.?/g, '')
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
-
         const report = lastCanLamSangReport;
-        const abnormalCount =
-            report && report.findings ? report.findings.length : 0;
-        const missingCount =
-            report && report.missingLabels ? report.missingLabels.length : 0;
+        const abnormalCount = report && report.findings ? report.findings.length : 0;
+        const missingCount = report && report.missingLabels ? report.missingLabels.length : 0;
 
-        const warningLine =
-            (abnormalCount || missingCount)
-                ? (
-                    `⚠️ Có ${abnormalCount} kết quả bất thường` +
-                    (missingCount ? ` · ${missingCount} thông số thiếu` : '') +
-                    '. Bấm dấu ! trên nút AUTO để xem chi tiết.\n\n'
-                )
-                : '';
+        let warning = '';
+        if (abnormalCount || missingCount) {
+            warning = `\n⚠️ ${abnormalCount} bất thường` +
+                (missingCount ? ` · ${missingCount} thông số thiếu` : '') +
+                '. Bấm dấu ! để xem.';
+        }
 
         return (
-            `⚠️ ${model} - AUTO hoàn tất · CHƯA LƯU\n\n` +
-            warningLine +
-            (detail ? detail + '\n\n' : '') +
-            '💾 HÃY BẤM “LƯU THAY ĐỔI” NGAY BÂY GIỜ.\n' +
-            'Không chuyển tab / quay lại / mở hồ sơ khác trước khi lưu.'
+            `⚠️ ${model} xong rồi · CHƯA LƯU\n` +
+            `💾 Bấm “Lưu thay đổi” trước khi chuyển tab.` +
+            warning
         );
     }
+
 
     function createUnifiedAutoButton() {
 
@@ -10740,6 +11023,8 @@ async function autoM2KhamLamSang() {
 
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoV742Styles();
+        ensureUnifiedAutoV744Styles();
+        ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
 
         const button =
