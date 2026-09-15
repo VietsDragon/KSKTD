@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.77
+// @version      7.79
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -2758,6 +2758,9 @@ async function autoM2KhamLamSang() {
             buttons
         }
     ) {
+        ensureUnifiedAutoV778Styles();
+        ensureUnifiedAutoV779Styles();
+        ensureUnifiedAutoV779Styles();
 
         ensureModalStyles();
 
@@ -7832,14 +7835,30 @@ async function autoM2KhamLamSang() {
             !matches.length
         ) {
 
+            const noResultBody =
+                searchInput.mode === 'sid'
+                    ? (
+                        '<div class="mnm-result-empty mnm-result-empty-compact">' +
+                            '<div class="mnm-result-empty-title">Không có kết quả khớp với SID này.</div>' +
+                            `<div class="mnm-result-key"><span>SID</span><b>${searchInput.sid}</b></div>` +
+                            '<div class="mnm-result-empty-action">Kiểm tra lại SID. Nếu SID đúng, liên hệ Khoa Xét nghiệm.</div>' +
+                        '</div>'
+                    )
+                    : (
+                        '<div class="mnm-result-empty mnm-result-empty-compact">' +
+                            '<div class="mnm-result-empty-title">Không có kết quả khớp với bệnh nhân này.</div>' +
+                            '<div class="mnm-result-patient">' +
+                                `<b>${searchInput.hoTen || ''}</b>` +
+                                `${searchInput.namSinh ? `<span>Năm sinh ${searchInput.namSinh}</span>` : ''}` +
+                                `${searchInput.gioiTinh ? `<span>${searchInput.gioiTinh === 'M' ? 'Nam' : (searchInput.gioiTinh === 'F' ? 'Nữ' : '')}</span>` : ''}` +
+                            '</div>' +
+                            '<div class="mnm-result-empty-action">Kiểm tra lại thông tin bệnh nhân. Nếu thông tin đúng, liên hệ Khoa Xét nghiệm.</div>' +
+                        '</div>'
+                    );
+
             await infoModal(
                 '⚠️ Không tìm thấy kết quả',
-                '<div class="mnm-result-empty">' +
-                '<div class="mnm-result-empty-title">Không có dữ liệu phù hợp với thông tin vừa nhập.</div>' +
-                `<div class="mnm-result-empty-desc"><span>Đã tìm:</span><b>${searchDesc}</b></div>` +
-                '<div class="mnm-result-empty-help">Hãy kiểm tra lại SID hoặc thông tin bệnh nhân rồi thử lại.</div>' +
-                `<div class="mnm-note">Nếu vẫn không tìm thấy, ${KHOA_XN_CONTACT_MSG.toLowerCase()}.</div>` +
-                '</div>',
+                noResultBody,
                 'mnm-warn'
             );
 
@@ -9926,6 +9945,8 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV764Styles();
         ensureUnifiedAutoV765Styles();
         ensureUnifiedAutoV768Styles();
+        ensureUnifiedAutoV778Styles();
+        ensureUnifiedAutoV779Styles();
         ensureUnifiedAutoV767Styles();
         ensureUnifiedAutoV767Styles();
         ensureUnifiedAutoV745Styles();
@@ -15036,6 +15057,136 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         document.head.appendChild(style);
     }
 
+    function ensureUnifiedAutoV778Styles() {
+        if (document.getElementById('medinet-auto-v778-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v778-style';
+        style.textContent = `
+            /* =====================================================
+               v7.78 — SHORT, EMPHATIC NO-RESULT MESSAGE
+               ===================================================== */
+            .mnm-result-empty-compact {
+                display:grid !important;
+                gap:8px !important;
+            }
+            .mnm-result-empty-compact .mnm-result-empty-title {
+                color:#9a3412 !important;
+                font-size:16px !important;
+                line-height:1.25 !important;
+                font-weight:900 !important;
+            }
+            .mnm-result-empty-compact .mnm-result-empty-help {
+                margin:0 !important;
+                padding:9px 10px !important;
+                color:#173549 !important;
+                background:#f0f9fc !important;
+                border-left:3px solid #0891b2 !important;
+                border-radius:7px !important;
+                font-size:14px !important;
+                line-height:1.4 !important;
+            }
+            .mnm-result-empty-compact .mnm-result-empty-desc {
+                display:grid !important;
+                grid-template-columns:auto minmax(0,1fr) !important;
+                gap:7px !important;
+                align-items:start !important;
+                padding:0 2px !important;
+                font-size:12.5px !important;
+                line-height:1.35 !important;
+            }
+            .mnm-result-empty-compact .mnm-result-empty-desc span {
+                color:#64748b !important;
+                font-weight:700 !important;
+            }
+            .mnm-result-empty-compact .mnm-result-empty-desc b {
+                color:#334155 !important;
+                font-weight:800 !important;
+            }
+            .mnm-result-empty-contact {
+                color:#475569 !important;
+                font-size:12.5px !important;
+                line-height:1.35 !important;
+                font-weight:650 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV779Styles() {
+        if (document.getElementById('medinet-auto-v779-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v779-style';
+        style.textContent = `
+            /* =====================================================
+               v7.79 — NO RESULT: SHORT + CLEAR
+               ===================================================== */
+            .mnm-result-empty-compact {
+                display:grid !important;
+                gap:10px !important;
+            }
+            .mnm-result-empty-compact .mnm-result-empty-title {
+                margin:0 !important;
+                color:#9a3412 !important;
+                font-size:15.5px !important;
+                line-height:1.3 !important;
+                font-weight:900 !important;
+            }
+            .mnm-result-key {
+                display:flex !important;
+                align-items:center !important;
+                gap:10px !important;
+                width:max-content !important;
+                max-width:100% !important;
+                padding:8px 10px !important;
+                border-radius:8px !important;
+                background:#f1f8fb !important;
+                border:1px solid #d6e8ef !important;
+            }
+            .mnm-result-key span {
+                color:#607385 !important;
+                font-size:12px !important;
+                font-weight:800 !important;
+            }
+            .mnm-result-key b {
+                color:#0f172a !important;
+                font-size:14px !important;
+                font-weight:900 !important;
+                letter-spacing:.15px !important;
+            }
+            .mnm-result-patient {
+                display:flex !important;
+                align-items:center !important;
+                flex-wrap:wrap !important;
+                gap:6px 10px !important;
+                padding:8px 10px !important;
+                border-radius:8px !important;
+                background:#f1f8fb !important;
+                border:1px solid #d6e8ef !important;
+            }
+            .mnm-result-patient b {
+                color:#0f172a !important;
+                font-size:14px !important;
+                font-weight:900 !important;
+            }
+            .mnm-result-patient span {
+                color:#526575 !important;
+                font-size:12.5px !important;
+                font-weight:700 !important;
+            }
+            .mnm-result-empty-action {
+                padding:9px 10px !important;
+                border-left:3px solid #0891b2 !important;
+                border-radius:7px !important;
+                background:#eef9fc !important;
+                color:#173549 !important;
+                font-size:13px !important;
+                line-height:1.45 !important;
+                font-weight:750 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     let medinetAutoDockResizeBound = false;
 
     function ensureAutoDockResizeWatcher() {
@@ -15416,6 +15567,8 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         ensureUnifiedAutoV765Styles();
         ensureUnifiedAutoV767Styles();
         ensureUnifiedAutoV768Styles();
+        ensureUnifiedAutoV778Styles();
+        ensureUnifiedAutoV779Styles();
         ensureUnifiedAutoV770Styles();
         ensureUnifiedAutoV771Styles();
         ensureUnifiedAutoV772Styles();
