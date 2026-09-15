@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.37
+// @version      7.38
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -8964,6 +8964,251 @@ async function autoM2KhamLamSang() {
                     width: min(318px, calc(100vw - 20px));
                 }
             }
+
+            /* =====================================================
+               v7.38 - TURBO CORE 2.0
+               - nhỏ hơn, sắc hơn, không đè nút cuộn mặc định Medinet
+               - turbine đa tầng + arc ánh sáng + spark ngắn
+               ===================================================== */
+            #medinet-auto-unified {
+                right: 22px;
+                bottom: 92px;
+                width: 62px;
+                height: 62px;
+                filter:
+                    drop-shadow(0 8px 16px rgba(2,6,23,.42))
+                    drop-shadow(0 0 5px rgba(34,211,238,.18));
+            }
+
+            #medinet-auto-unified .mau-shell {
+                background:
+                    radial-gradient(circle at 50% 42%,
+                        rgba(10,72,103,.96) 0 24%,
+                        rgba(3,22,38,.99) 55%,
+                        #010711 100%);
+                border: 1px solid rgba(125,211,252,.44);
+                box-shadow:
+                    inset 0 0 0 2px rgba(1,7,16,.94),
+                    inset 0 0 10px rgba(34,211,238,.13),
+                    0 0 0 1px rgba(8,145,178,.26),
+                    0 0 10px rgba(34,211,238,.24);
+            }
+
+            #medinet-auto-unified .mau-shell::before {
+                content: '';
+                position: absolute;
+                inset: 5px;
+                border-radius: 50%;
+                border: 1px solid rgba(103,232,249,.16);
+                box-shadow:
+                    inset 0 0 8px rgba(34,211,238,.08),
+                    0 0 4px rgba(34,211,238,.08);
+                pointer-events: none;
+            }
+
+            #medinet-auto-unified .mau-shell::after {
+                content: '';
+                position: absolute;
+                inset: -2px;
+                border-radius: 50%;
+                background:
+                    conic-gradient(
+                        from 0deg,
+                        transparent 0 16deg,
+                        rgba(103,232,249,.78) 16deg 20deg,
+                        transparent 20deg 92deg,
+                        rgba(56,189,248,.52) 92deg 96deg,
+                        transparent 96deg 184deg,
+                        rgba(103,232,249,.66) 184deg 188deg,
+                        transparent 188deg 272deg,
+                        rgba(34,211,238,.50) 272deg 276deg,
+                        transparent 276deg 360deg
+                    );
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+                mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+                opacity: .72;
+                pointer-events: none;
+            }
+
+            #medinet-auto-unified .mau-ring {
+                inset: 3px;
+                background:
+                    repeating-conic-gradient(
+                        from 3deg,
+                        rgba(125,211,252,.96) 0 4deg,
+                        rgba(14,116,144,.24) 4deg 8deg,
+                        rgba(2,6,23,.04) 8deg 15deg
+                    );
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+                mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+                opacity: .76;
+            }
+
+            #medinet-auto-unified .mau-ring2 {
+                inset: 8px;
+                background:
+                    conic-gradient(
+                        from 0deg,
+                        transparent 0 40deg,
+                        rgba(103,232,249,.86) 40deg 62deg,
+                        transparent 62deg 176deg,
+                        rgba(56,189,248,.66) 176deg 194deg,
+                        transparent 194deg 310deg,
+                        rgba(34,211,238,.72) 310deg 330deg,
+                        transparent 330deg 360deg
+                    );
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+                mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+                filter: drop-shadow(0 0 3px rgba(34,211,238,.38));
+            }
+
+            #medinet-auto-unified .mau-core {
+                inset: 11px;
+                background:
+                    radial-gradient(circle at 48% 34%,
+                        rgba(15,115,150,.50),
+                        rgba(5,44,65,.44) 42%,
+                        rgba(1,9,19,.97) 100%);
+                border: 1px solid rgba(103,232,249,.34);
+            }
+
+            #medinet-auto-unified .mau-model {
+                font-size: 20px;
+                color: #ffffff !important;
+                text-shadow:
+                    0 0 4px rgba(207,250,254,.92),
+                    0 0 10px rgba(34,211,238,.42);
+            }
+
+            #medinet-auto-unified .mau-auto {
+                margin-top: 2px;
+                font-size: 6px;
+                color: #a5f3fc !important;
+            }
+
+            #medinet-auto-unified .mau-warning {
+                top: -8px;
+                right: -8px;
+                width: 32px;
+                height: 32px;
+            }
+
+            #medinet-auto-unified .mau-warning::before {
+                width: 19px;
+                height: 19px;
+                font-size: 13px;
+                color: #1f1300 !important;
+                border: 1px solid rgba(255,251,235,.92);
+                box-shadow:
+                    0 0 0 3px rgba(1,7,16,.96),
+                    0 0 10px rgba(245,158,11,.72);
+            }
+
+            #medinet-auto-unified .mau-sparks {
+                inset: -7px;
+            }
+
+            #medinet-auto-unified .mau-sparks i {
+                width: 2px;
+                height: 6px;
+                margin-top: -3px;
+                transform-origin: 1px 35px;
+                background: linear-gradient(to bottom, #fff7d6, #fbbf24 42%, #f97316 72%, transparent 100%);
+                box-shadow:
+                    0 0 4px rgba(251,191,36,.9),
+                    0 0 7px rgba(249,115,22,.38);
+            }
+
+            #medinet-auto-unified .mau-sparks i:nth-child(1) { transform: rotate(11deg) translateY(-31px) scale(.85); }
+            #medinet-auto-unified .mau-sparks i:nth-child(2) { transform: rotate(83deg) translateY(-31px) scale(.52); }
+            #medinet-auto-unified .mau-sparks i:nth-child(3) { transform: rotate(157deg) translateY(-31px) scale(.72); }
+            #medinet-auto-unified .mau-sparks i:nth-child(4) { transform: rotate(238deg) translateY(-31px) scale(.48); }
+            #medinet-auto-unified .mau-sparks i:nth-child(5) { transform: rotate(314deg) translateY(-31px) scale(.66); }
+
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation: medinet-turbine-spin .58s linear infinite;
+            }
+
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation: medinet-turbine-counter 1.08s linear infinite;
+            }
+
+            #medinet-auto-unified.mau-running .mau-shell::after {
+                animation: medinet-turbine-spin 1.65s linear infinite;
+                opacity: 1;
+            }
+
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity: .78;
+                animation:
+                    medinet-spark-orbit .82s linear infinite,
+                    medinet-spark-flicker .16s steps(2,end) infinite;
+            }
+
+            /* Notice v7.38: độ tương phản cao, nhỏ hơn và né nút mặc định */
+            #medinet-auto-notice {
+                right: 94px;
+                bottom: 90px;
+                width: min(300px, calc(100vw - 118px));
+                color: #ffffff !important;
+                background: linear-gradient(180deg, rgba(5,18,32,.985), rgba(2,9,18,.992)) !important;
+                border-color: rgba(103,232,249,.30);
+                box-shadow:
+                    0 14px 32px rgba(2,6,23,.42),
+                    0 0 16px rgba(34,211,238,.10);
+            }
+
+            #medinet-auto-notice,
+            #medinet-auto-notice * {
+                font-family: 'Segoe UI', Roboto, Arial, sans-serif !important;
+                box-sizing: border-box;
+            }
+
+            #medinet-auto-notice .man-title {
+                color: #ffffff !important;
+                font-size: 13.5px;
+                font-weight: 850;
+            }
+
+            #medinet-auto-notice .man-body {
+                color: #dbeafe !important;
+                font-size: 12.2px;
+                line-height: 1.52;
+            }
+
+            #medinet-auto-notice .man-icon {
+                color: #cffafe !important;
+            }
+
+            #medinet-auto-notice.man-warn .man-icon {
+                color: #fef3c7 !important;
+            }
+
+            #medinet-auto-notice.man-error .man-icon {
+                color: #fee2e2 !important;
+            }
+
+            #medinet-auto-notice .man-close {
+                color: #cbd5e1 !important;
+            }
+
+            @media (max-width: 640px) {
+                #medinet-auto-unified {
+                    right: 14px;
+                    bottom: 82px;
+                    width: 57px;
+                    height: 57px;
+                }
+
+                #medinet-auto-unified .mau-core { inset: 10px; }
+                #medinet-auto-unified .mau-model { font-size: 18px; }
+
+                #medinet-auto-notice {
+                    right: 78px;
+                    bottom: 78px;
+                    width: min(278px, calc(100vw - 94px));
+                }
+            }
         `;
 
         document.head.appendChild(
@@ -8972,9 +9217,43 @@ async function autoM2KhamLamSang() {
     }
 
 
+    const unifiedAutoRuntime = {
+        running: false,
+        model: '',
+        lastMessage: ''
+    };
+
+    function normalizeAutoMessageModel(message) {
+
+        const model =
+            unifiedAutoRuntime.model ||
+            getCurrentMedinetModel();
+
+        if (!model) {
+            return String(message || '');
+        }
+
+        return String(message || '').replace(
+            /\bM[2-6]\b/g,
+            model
+        );
+    }
+
     function autoAlert(message) {
 
         ensureUnifiedAutoStyles();
+
+        message = normalizeAutoMessageModel(
+            message
+        );
+
+        // Khi đang chạy từ nút AUTO hợp nhất, giữ thông báo nội bộ
+        // lại để cuối quy trình chỉ hiện 1 thẻ kết quả + trạng thái lưu.
+        if (unifiedAutoRuntime.running) {
+            unifiedAutoRuntime.lastMessage =
+                String(message || '');
+            return;
+        }
 
         const raw =
             String(message || '').trim();
@@ -9417,6 +9696,110 @@ async function autoM2KhamLamSang() {
         }
     }
 
+    function findVisibleSaveButton() {
+
+        const candidates = [
+            ...document.querySelectorAll(
+                'button, [role="button"], .dx-button'
+            )
+        ];
+
+        const isVisible =
+            el => {
+                if (!el) return false;
+                const style = getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return (
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    rect.width > 0 &&
+                    rect.height > 0
+                );
+            };
+
+        const exact =
+            candidates.find(
+                el =>
+                    isVisible(el) &&
+                    norm(el.innerText || el.textContent) === 'lưu thay đổi' &&
+                    !el.disabled &&
+                    el.getAttribute('aria-disabled') !== 'true'
+            );
+
+        if (exact) {
+            return exact;
+        }
+
+        return candidates.find(
+            el =>
+                isVisible(el) &&
+                norm(el.innerText || el.textContent).includes('lưu thay đổi') &&
+                !el.disabled &&
+                el.getAttribute('aria-disabled') !== 'true'
+        ) || null;
+    }
+
+    async function autoSaveCurrentForm() {
+
+        await sleep(
+            220
+        );
+
+        const saveButton =
+            findVisibleSaveButton();
+
+        if (!saveButton) {
+            return {
+                clicked: false,
+                reason: 'not-found'
+            };
+        }
+
+        robustClick(
+            saveButton
+        );
+
+        await sleep(
+            300
+        );
+
+        return {
+            clicked: true,
+            reason: 'clicked'
+        };
+    }
+
+    function buildUnifiedCompletionMessage(model, saveResult) {
+
+        let detail =
+            String(
+                unifiedAutoRuntime.lastMessage || ''
+            )
+            .split('\n')
+            .slice(1)
+            .join('\n')
+            .trim();
+
+        // Bỏ các câu nhắc lưu cũ vì quy trình mới tự bấm Lưu thay đổi.
+        detail = detail
+            .replace(/Vui lòng kiểm tra trước khi lưu\.?/gi, '')
+            .replace(/Vui Lòng Kiểm Tra Trước Khi Lưu\.?/g, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+        const saveLine =
+            saveResult && saveResult.clicked
+                ? '✓ Đã bấm Lưu thay đổi.'
+                : '⚠️ AUTO đã xong nhưng không tìm thấy nút Lưu thay đổi.';
+
+        return (
+            (saveResult && saveResult.clicked ? '✅' : '⚠️') +
+            ` ${model} - AUTO hoàn tất\n\n` +
+            (detail ? detail + '\n' : '') +
+            saveLine
+        );
+    }
+
     function createUnifiedAutoButton() {
 
         if (
@@ -9532,11 +9915,34 @@ async function autoM2KhamLamSang() {
                     'mau-running'
                 );
 
+                unifiedAutoRuntime.running =
+                    true;
+
+                unifiedAutoRuntime.model =
+                    model;
+
+                unifiedAutoRuntime.lastMessage =
+                    '';
+
+                let completed =
+                    false;
+
+                let saveResult =
+                    null;
+
                 try {
 
                     await runAutoByDetectedModel(
                         model
                     );
+
+                    completed =
+                        true;
+
+                    // AUTO xong -> bấm Lưu thay đổi ngay, tránh người dùng
+                    // chuyển trang trước khi lưu dữ liệu vừa điền.
+                    saveResult =
+                        await autoSaveCurrentForm();
 
                 } catch (e) {
 
@@ -9545,12 +9951,14 @@ async function autoM2KhamLamSang() {
                         e
                     );
 
-                    autoAlert(
+                    unifiedAutoRuntime.lastMessage =
                         `❌ Lỗi AUTO ${model}.\n\n` +
-                        'Mở F12 → Console để xem chi tiết.'
-                    );
+                        'Mở F12 → Console để xem chi tiết.';
 
                 } finally {
+
+                    unifiedAutoRuntime.running =
+                        false;
 
                     button.disabled =
                         false;
@@ -9560,6 +9968,26 @@ async function autoM2KhamLamSang() {
                     );
 
                     updateUnifiedAutoButton();
+
+                    if (completed) {
+                        autoAlert(
+                            buildUnifiedCompletionMessage(
+                                model,
+                                saveResult
+                            )
+                        );
+                    } else {
+                        autoAlert(
+                            unifiedAutoRuntime.lastMessage ||
+                            `❌ Lỗi AUTO ${model}.`
+                        );
+                    }
+
+                    unifiedAutoRuntime.model =
+                        '';
+
+                    unifiedAutoRuntime.lastMessage =
+                        '';
                 }
             }
         );
