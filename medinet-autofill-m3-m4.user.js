@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.34
+// @version      7.35
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -8403,6 +8403,703 @@ async function autoM2KhamLamSang() {
 
 
     // =========================================================
+    // AUTO HỢP NHẤT M2-M6
+    // - Nhận diện mẫu từ URL trang danh sách
+    // - Ghi nhớ mẫu trong sessionStorage của đúng tab hiện tại
+    // - Khi đi vào hồ sơ chi tiết vẫn giữ đúng mẫu
+    // =========================================================
+
+    const MEDINET_MODEL_SESSION_KEY =
+        'medinet-auto-current-model-v1';
+
+    const MEDINET_MODEL_MAX_AGE =
+        12 * 60 * 60 * 1000;
+
+    const MEDINET_MODEL_ROUTES = [
+        {
+            model: 'M2',
+            marker: 'KSKDK_DanhSach_KSK_M12'
+        },
+        {
+            model: 'M3',
+            marker: 'KSKDK_DanhSach_KSK_M13'
+        },
+        {
+            model: 'M4',
+            marker: 'KSKDK_DanhSach_KSK_NguoiCaoTuoi_Report'
+        },
+        {
+            model: 'M6',
+            marker: 'KSKDK_DanhSach_DinhKy_LaiXeOto'
+        },
+        {
+            model: 'M5',
+            marker: 'KSKDK_DanhSach_DinhKyLaiXe'
+        }
+    ];
+
+    function detectModelFromUrl(url) {
+
+        const source =
+            String(url || '');
+
+        const found =
+            MEDINET_MODEL_ROUTES.find(
+                item =>
+                    source.includes(
+                        item.marker
+                    )
+            );
+
+        return found
+            ? found.model
+            : '';
+    }
+
+    function rememberDetectedModel(model) {
+
+        if (!model) {
+            return;
+        }
+
+        try {
+
+            sessionStorage.setItem(
+                MEDINET_MODEL_SESSION_KEY,
+                JSON.stringify({
+                    model,
+                    ts: Date.now()
+                })
+            );
+
+        } catch (e) {
+
+            warn(
+                'Không lưu được mẫu vào sessionStorage:',
+                e
+            );
+        }
+    }
+
+    function getRememberedModel() {
+
+        try {
+
+            const raw =
+                sessionStorage.getItem(
+                    MEDINET_MODEL_SESSION_KEY
+                );
+
+            if (!raw) {
+                return '';
+            }
+
+            const data =
+                JSON.parse(raw);
+
+            if (
+                !data ||
+                !data.model ||
+                !data.ts ||
+                Date.now() - data.ts > MEDINET_MODEL_MAX_AGE
+            ) {
+
+                sessionStorage.removeItem(
+                    MEDINET_MODEL_SESSION_KEY
+                );
+
+                return '';
+            }
+
+            return data.model;
+
+        } catch (e) {
+
+            return '';
+        }
+    }
+
+    function getCurrentMedinetModel() {
+
+        const fromCurrentUrl =
+            detectModelFromUrl(
+                location.href
+            );
+
+        if (fromCurrentUrl) {
+
+            rememberDetectedModel(
+                fromCurrentUrl
+            );
+
+            return fromCurrentUrl;
+        }
+
+        const fromReferrer =
+            detectModelFromUrl(
+                document.referrer
+            );
+
+        if (fromReferrer) {
+
+            rememberDetectedModel(
+                fromReferrer
+            );
+
+            return fromReferrer;
+        }
+
+        return getRememberedModel();
+    }
+
+    function isModelListPage() {
+
+        return !!detectModelFromUrl(
+            location.href
+        );
+    }
+
+    function ensureUnifiedAutoStyles() {
+
+        if (
+            document.getElementById(
+                'medinet-unified-auto-style'
+            )
+        ) {
+            return;
+        }
+
+        const style =
+            document.createElement(
+                'style'
+            );
+
+        style.id =
+            'medinet-unified-auto-style';
+
+        style.textContent = `
+            #medinet-auto-unified {
+                position: fixed;
+                right: 18px;
+                bottom: 22px;
+                z-index: 999999;
+                height: 48px;
+                min-width: 132px;
+                padding: 0 10px 0 8px;
+                border: 1px solid rgba(255,255,255,.16);
+                border-radius: 16px;
+                background: linear-gradient(135deg, #0f172a 0%, #172554 100%);
+                color: #fff;
+                display: inline-flex;
+                align-items: center;
+                gap: 9px;
+                font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+                cursor: pointer;
+                user-select: none;
+                box-shadow:
+                    0 10px 26px rgba(15,23,42,.28),
+                    0 2px 8px rgba(15,23,42,.18);
+                transition:
+                    transform .16s ease,
+                    box-shadow .16s ease,
+                    border-color .16s ease,
+                    filter .16s ease;
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+            }
+            #medinet-auto-unified:hover:not(:disabled) {
+                transform: translateY(-2px);
+                border-color: rgba(94,234,212,.45);
+                box-shadow:
+                    0 14px 32px rgba(15,23,42,.34),
+                    0 0 0 3px rgba(45,212,191,.10);
+            }
+            #medinet-auto-unified:active:not(:disabled) {
+                transform: translateY(0) scale(.985);
+            }
+            #medinet-auto-unified:disabled {
+                cursor: wait;
+                opacity: .92;
+            }
+            #medinet-auto-unified .mau-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 11px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex: 0 0 32px;
+                font-size: 16px;
+                background: linear-gradient(135deg, #2dd4bf, #22c55e);
+                color: #052e2b;
+                box-shadow: inset 0 1px 0 rgba(255,255,255,.45);
+            }
+            #medinet-auto-unified .mau-text {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                justify-content: center;
+                line-height: 1.05;
+                min-width: 52px;
+            }
+            #medinet-auto-unified .mau-title {
+                font-size: 13px;
+                font-weight: 800;
+                letter-spacing: .8px;
+            }
+            #medinet-auto-unified .mau-sub {
+                margin-top: 4px;
+                font-size: 9.5px;
+                font-weight: 600;
+                color: #94a3b8;
+                letter-spacing: .3px;
+            }
+            #medinet-auto-unified .mau-badge {
+                min-width: 31px;
+                height: 24px;
+                padding: 0 7px;
+                border-radius: 9px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 800;
+                letter-spacing: .3px;
+                background: rgba(255,255,255,.10);
+                border: 1px solid rgba(255,255,255,.14);
+                color: #e2e8f0;
+            }
+            #medinet-auto-unified.mau-unknown {
+                filter: saturate(.65);
+            }
+            #medinet-auto-unified.mau-unknown .mau-icon {
+                background: #334155;
+                color: #cbd5e1;
+            }
+            #medinet-auto-unified.mau-running .mau-icon {
+                font-size: 0;
+                background: rgba(255,255,255,.10);
+            }
+            #medinet-auto-unified.mau-running .mau-icon::after {
+                content: '';
+                width: 14px;
+                height: 14px;
+                border: 2px solid rgba(255,255,255,.28);
+                border-top-color: #5eead4;
+                border-radius: 50%;
+                animation: medinet-unified-spin .7s linear infinite;
+            }
+            @keyframes medinet-unified-spin {
+                to { transform: rotate(360deg); }
+            }
+            @media (max-width: 640px) {
+                #medinet-auto-unified {
+                    right: 12px;
+                    bottom: 14px;
+                    height: 46px;
+                    min-width: 122px;
+                    border-radius: 15px;
+                }
+            }
+        `;
+
+        document.head.appendChild(
+            style
+        );
+    }
+
+    function updateUnifiedAutoButton() {
+
+        const button =
+            document.getElementById(
+                'medinet-auto-unified'
+            );
+
+        if (!button) {
+            return;
+        }
+
+        const model =
+            getCurrentMedinetModel();
+
+        const badge =
+            button.querySelector(
+                '.mau-badge'
+            );
+
+        const sub =
+            button.querySelector(
+                '.mau-sub'
+            );
+
+        badge.textContent =
+            model || '—';
+
+        sub.textContent =
+            model
+                ? `ĐÃ NHẬN ${model}`
+                : 'CHƯA NHẬN MẪU';
+
+        button.classList.toggle(
+            'mau-unknown',
+            !model
+        );
+
+        button.title =
+            model
+                ? `AUTO ${model} • Tự nhận diện theo mẫu đang mở`
+                : 'Chưa nhận diện được M2-M6. Hãy mở từ trang danh sách mẫu.';
+    }
+
+    async function runAutoM2Unified() {
+
+        const tabTitle =
+            getCurrentTabTitleM2();
+
+        const bodyTextM2 =
+            norm(
+                document.body.innerText
+            );
+
+        if (
+            tabTitle.includes(
+                'tiền sử bệnh nhân dưới 18 tuổi'
+            )
+        ) {
+
+            await autoM2TienSuDuoi18();
+
+        } else if (
+            tabTitle.includes(
+                'đánh giá sức khỏe tâm thần'
+            ) ||
+            bodyTextM2.includes(
+                'đánh giá sức khỏe tâm thần'
+            )
+        ) {
+
+            await autoM2DanhGiaTamThan();
+
+        } else if (
+            tabTitle.includes(
+                'thông tin khám bệnh nhân dưới 18 tuổi'
+            ) ||
+            bodyTextM2.includes(
+                'thông tin khám bệnh nhân dưới 18 tuổi'
+            )
+        ) {
+
+            await autoM2KhamLamSang();
+
+        } else {
+
+            alert(
+                '⚠️ AUTO M2 chưa hỗ trợ tab này.\n\n' +
+                'Tab hiện tại: ' +
+                (tabTitle || '(không xác định)')
+            );
+        }
+    }
+
+    async function runAutoM3Unified() {
+
+        const bodyText =
+            norm(
+                document.body.innerText
+            );
+
+        if (
+            bodyText.includes(
+                'kết quả xét nghiệm máu'
+            )
+        ) {
+
+            await autoCanLamSang();
+
+        } else if (
+            bodyText.includes(
+                'chưa phát hiện bất thường'
+            )
+        ) {
+
+            await autoM3KhamLamSang();
+
+        } else {
+
+            await autoM3TienSu();
+        }
+    }
+
+    async function runAutoM4Unified() {
+
+        const tabTitle =
+            getCurrentTabTitle();
+
+        const bodyTextM4 =
+            norm(
+                document.body.innerText
+            );
+
+        if (
+            bodyTextM4.includes(
+                'kết quả xét nghiệm máu'
+            )
+        ) {
+
+            await autoCanLamSang();
+
+        } else if (
+            tabTitle.includes(
+                'hỏi bệnh và khám lâm sàng'
+            )
+        ) {
+
+            await autoM4HoiBenhKhamLamSang();
+
+        } else if (
+            tabTitle.includes(
+                'thông tin khám'
+            )
+        ) {
+
+            await autoM3KhamLamSang();
+
+        } else {
+
+            await autoM4TienSu();
+        }
+    }
+
+    async function runAutoByDetectedModel(model) {
+
+        switch (model) {
+
+            case 'M2':
+                await runAutoM2Unified();
+                return;
+
+            case 'M3':
+                await runAutoM3Unified();
+                return;
+
+            case 'M4':
+                await runAutoM4Unified();
+                return;
+
+            case 'M5':
+            case 'M6':
+                await autoM5M6();
+                return;
+
+            default:
+                throw new Error(
+                    'Không xác định được mẫu M2-M6.'
+                );
+        }
+    }
+
+    function createUnifiedAutoButton() {
+
+        if (
+            document.getElementById(
+                'medinet-auto-unified'
+            )
+        ) {
+
+            updateUnifiedAutoButton();
+            return;
+        }
+
+        ensureUnifiedAutoStyles();
+
+        const button =
+            document.createElement(
+                'button'
+            );
+
+        button.id =
+            'medinet-auto-unified';
+
+        button.type =
+            'button';
+
+        button.setAttribute(
+            'aria-label',
+            'Medinet AUTO'
+        );
+
+        button.innerHTML =
+            '<span class="mau-icon">⚡</span>' +
+            '<span class="mau-text">' +
+                '<span class="mau-title">AUTO</span>' +
+                '<span class="mau-sub">ĐANG NHẬN DIỆN</span>' +
+            '</span>' +
+            '<span class="mau-badge">—</span>';
+
+        button.addEventListener(
+            'click',
+            async function () {
+
+                if (button.disabled) {
+                    return;
+                }
+
+                const model =
+                    getCurrentMedinetModel();
+
+                if (!model) {
+
+                    showToast(
+                        '⚠️ Chưa nhận diện được mẫu. Hãy mở hồ sơ từ danh sách M2-M6.',
+                        4200
+                    );
+
+                    updateUnifiedAutoButton();
+                    return;
+                }
+
+                if (isModelListPage()) {
+
+                    showToast(
+                        `✓ Đã nhận diện ${model}. Mở hồ sơ cần nhập rồi bấm AUTO.`,
+                        3200
+                    );
+
+                    return;
+                }
+
+                button.disabled =
+                    true;
+
+                button.classList.add(
+                    'mau-running'
+                );
+
+                const title =
+                    button.querySelector(
+                        '.mau-title'
+                    );
+
+                const sub =
+                    button.querySelector(
+                        '.mau-sub'
+                    );
+
+                title.textContent =
+                    'ĐANG CHẠY';
+
+                sub.textContent =
+                    `AUTO ${model}`;
+
+                showStatusBar(
+                    `Đang chạy AUTO ${model}...`
+                );
+
+                try {
+
+                    await runAutoByDetectedModel(
+                        model
+                    );
+
+                } catch (e) {
+
+                    console.error(
+                        LOG,
+                        e
+                    );
+
+                    alert(
+                        `❌ Lỗi AUTO ${model}.\n\n` +
+                        'Mở F12 → Console để xem chi tiết.'
+                    );
+
+                } finally {
+
+                    hideStatusBar();
+
+                    button.disabled =
+                        false;
+
+                    button.classList.remove(
+                        'mau-running'
+                    );
+
+                    title.textContent =
+                        'AUTO';
+
+                    updateUnifiedAutoButton();
+                }
+            }
+        );
+
+        document.body.appendChild(
+            button
+        );
+
+        updateUnifiedAutoButton();
+    }
+
+    function installModelRouteWatcher() {
+
+        if (
+            window.__medinetUnifiedAutoWatcherInstalled
+        ) {
+            return;
+        }
+
+        window.__medinetUnifiedAutoWatcherInstalled =
+            true;
+
+        let lastHref =
+            location.href;
+
+        const refresh =
+            () => {
+
+                const currentModel =
+                    detectModelFromUrl(
+                        location.href
+                    );
+
+                if (currentModel) {
+                    rememberDetectedModel(
+                        currentModel
+                    );
+                }
+
+                updateUnifiedAutoButton();
+            };
+
+        window.addEventListener(
+            'popstate',
+            refresh
+        );
+
+        window.addEventListener(
+            'hashchange',
+            refresh
+        );
+
+        setInterval(
+            () => {
+
+                if (
+                    location.href !== lastHref
+                ) {
+
+                    lastHref =
+                        location.href;
+
+                    refresh();
+                }
+            },
+            700
+        );
+
+        refresh();
+    }
+
+    // =========================================================
     // KHỞI ĐỘNG
     // =========================================================
 
@@ -8410,13 +9107,9 @@ async function autoM2KhamLamSang() {
 
         ensureToolbarStyles();
 
-        createM2Button();
+        createUnifiedAutoButton();
 
-        createM3Button();
-
-        createM4Button();
-
-        createM5M6Button();
+        installModelRouteWatcher();
 
         createXemCanhBaoButton();
 
@@ -8425,7 +9118,7 @@ async function autoM2KhamLamSang() {
         );
 
         log(
-            '✅ MEDINET AUTO M3 + M4 READY'
+            '✅ MEDINET AUTO M2-M6 UNIFIED READY'
         );
 
         log(
