@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.46
+// @version      7.47
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -10737,6 +10737,106 @@ async function autoM2KhamLamSang() {
         }, 450);
     }
 
+
+    function ensureUnifiedAutoV747Styles() {
+        if (document.getElementById('medinet-auto-v747-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v747-style';
+        style.textContent = `
+            /* =====================================================
+               v7.47 — clean manga tail + sane scrolling
+               ===================================================== */
+            #medinet-auto-dock-panel {
+                overflow:visible !important;
+                max-height:none !important;
+                scrollbar-width:none !important;
+            }
+            #medinet-auto-dock-panel::-webkit-scrollbar {
+                display:none !important;
+                width:0 !important;
+                height:0 !important;
+            }
+
+            /* Kill every legacy two-layer/brown tail. */
+            #medinet-auto-dock-panel::before {
+                content:none !important;
+                display:none !important;
+            }
+
+            /* One clean manga tail only. */
+            #medinet-auto-dock-panel::after {
+                content:'' !important;
+                display:block !important;
+                position:absolute !important;
+                right:23px !important;
+                bottom:-9px !important;
+                width:16px !important;
+                height:16px !important;
+                background:#fff !important;
+                border-right:2.5px solid #111827 !important;
+                border-bottom:2.5px solid #111827 !important;
+                border-top:0 !important;
+                border-left:0 !important;
+                clip-path:none !important;
+                transform:rotate(45deg) !important;
+                z-index:-1 !important;
+                box-shadow:none !important;
+            }
+
+            /* Short notices NEVER scroll. */
+            #medinet-auto-dock-panel:not(.madp-long) .madp-body {
+                max-height:none !important;
+                overflow:visible !important;
+                scrollbar-width:none !important;
+            }
+            #medinet-auto-dock-panel:not(.madp-long) .madp-body::-webkit-scrollbar {
+                display:none !important;
+                width:0 !important;
+                height:0 !important;
+            }
+
+            /* Only a genuinely long report scrolls its BODY, never the bubble shell. */
+            #medinet-auto-dock-panel.madp-long {
+                width:min(350px,calc(100vw - 28px)) !important;
+                max-height:none !important;
+                overflow:visible !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body {
+                max-height:min(48vh,360px) !important;
+                overflow-y:auto !important;
+                overflow-x:hidden !important;
+                scrollbar-width:thin !important;
+                scrollbar-color:rgba(71,85,105,.38) transparent !important;
+                padding-right:11px !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body::-webkit-scrollbar {
+                display:block !important;
+                width:5px !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body::-webkit-scrollbar-track {
+                background:transparent !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body::-webkit-scrollbar-thumb {
+                background:rgba(71,85,105,.30) !important;
+                border-radius:999px !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function isLongAutoDockContent(bodyHtml) {
+        const html = String(bodyHtml || '');
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const plain = (tmp.innerText || tmp.textContent || '').trim();
+        return (
+            plain.length > 650 ||
+            tmp.querySelectorAll('li').length > 7 ||
+            tmp.querySelectorAll('.mnm-finding-row').length > 4 ||
+            !!tmp.querySelector('.mnm-patient-card') && plain.length > 420
+        );
+    }
+
     const unifiedAutoRuntime = {
         running: false,
         model: '',
@@ -10779,6 +10879,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV744Styles();
         ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoV746Styles();
+        ensureUnifiedAutoV747Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
         ensureAutoDockContextWatcher();
         closeAutoDockPanel();
@@ -10786,6 +10887,9 @@ async function autoM2KhamLamSang() {
         const panel = document.createElement('div');
         panel.id = 'medinet-auto-dock-panel';
         panel.className = `madp-${type}`;
+        if (isLongAutoDockContent(bodyHtml)) {
+            panel.classList.add('madp-long');
+        }
         panel.dataset.contextKey = getAutoUiContextKey();
         panel.innerHTML =
             '<div class="madp-head">' +
@@ -10815,6 +10919,7 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV744Styles();
         ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoV746Styles();
+        ensureUnifiedAutoV747Styles();
 
         message = normalizeAutoMessageModel(
             message
