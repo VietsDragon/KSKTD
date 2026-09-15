@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.50
+// @version      7.77
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -3746,18 +3746,16 @@ async function autoM2KhamLamSang() {
                     const badgeText =
                         f.direction
                             ? f.direction.toUpperCase()
-                            : 'BẤT<br>THƯỜNG';
+                            : 'XEM';
 
                     return (
                         '<div class="mnm-finding-row">' +
                         `<span class="mnm-badge ${badgeClass}">${badgeText}</span>` +
                         '<div class="mnm-finding-main">' +
                         `<div class="mnm-finding-label">${f.label}</div>` +
-                        '<div class="mnm-finding-value-row">' +
-                        `<span class="mnm-finding-number ${numberClass}">${f.value}</span>` +
-                        `<span class="mnm-finding-range">(bình thường: ${f.rangeText})</span>` +
-                        '</div>' +
-                        `<div class="mnm-finding-icd">${f.code} - ${f.name}</div>` +
+                        `<div class="mnm-finding-number ${numberClass}">${f.value}</div>` +
+                        `<div class="mnm-finding-range">Mức tham chiếu: ${f.rangeText}</div>` +
+                        `<div class="mnm-finding-icd"><span>Mã tham khảo</span><b>${f.code}</b><span>${f.name}</span></div>` +
                         '</div>' +
                         '</div>'
                     );
@@ -3768,8 +3766,7 @@ async function autoM2KhamLamSang() {
 
         return (
             rows +
-            '<div class="mnm-note">⚠️ Chỉ mang tính tham khảo - ' +
-            'KHÔNG thay thế chẩn đoán của bác sĩ.</div>'
+            '<div class="mnm-note">⚠️ Các gợi ý trên chỉ để tham khảo và không thay thế đánh giá của bác sĩ.</div>'
         );
     }
 
@@ -7726,6 +7723,10 @@ async function autoM2KhamLamSang() {
     // lại SID/tên
     let lastCanLamSangReport =
         null;
+    let lastCanLamSangReportPatientKey =
+        "";
+    const LAST_CLS_REPORT_STORAGE_KEY =
+        'medinet-auto-last-cls-report-v760';
 
     async function autoCanLamSang() {
 
@@ -7833,8 +7834,12 @@ async function autoM2KhamLamSang() {
 
             await infoModal(
                 '⚠️ Không tìm thấy kết quả',
-                `<div>Không tìm thấy kết quả khớp với ${searchDesc}.</div>` +
-                `<div class="mnm-note">${KHOA_XN_CONTACT_MSG}</div>`,
+                '<div class="mnm-result-empty">' +
+                '<div class="mnm-result-empty-title">Không có dữ liệu phù hợp với thông tin vừa nhập.</div>' +
+                `<div class="mnm-result-empty-desc"><span>Đã tìm:</span><b>${searchDesc}</b></div>` +
+                '<div class="mnm-result-empty-help">Hãy kiểm tra lại SID hoặc thông tin bệnh nhân rồi thử lại.</div>' +
+                `<div class="mnm-note">Nếu vẫn không tìm thấy, ${KHOA_XN_CONTACT_MSG.toLowerCase()}.</div>` +
+                '</div>',
                 'mnm-warn'
             );
 
@@ -8039,6 +8044,8 @@ async function autoM2KhamLamSang() {
             missingLabels,
             time: new Date()
         };
+        lastCanLamSangReportPatientKey = getCurrentPatientKey();
+        saveLastCanLamSangReport();
 
         // Đồng bộ dấu cảnh báo lên nút AUTO tròn.
         updateUnifiedAutoButton();
@@ -8073,42 +8080,76 @@ async function autoM2KhamLamSang() {
     // -----------------------------------------------------------
 
 
+    function renderInspectorFindingsHtml(findings) {
+        if (!Array.isArray(findings) || !findings.length) {
+            return '<div class="xai-ok">✓ Chưa thấy chỉ số bất thường theo khoảng tham chiếu.</div>';
+        }
+
+        return findings.map(f => {
+            const isLow = f.direction === 'thấp';
+            const stateClass = isLow ? 'xai-low' : 'xai-high';
+            const stateText = f.direction ? String(f.direction).toUpperCase() : 'XEM';
+            const code = f.code || '';
+            const name = f.name || '';
+            const ref = f.rangeText || '';
+            return (
+                `<div class="xai-finding ${stateClass}">` +
+                    `<div class="xai-badge">${stateText}</div>` +
+                    '<div class="xai-finding-main">' +
+                        `<div class="xai-finding-name">${f.label || ''}</div>` +
+                        `<div class="xai-finding-value">${f.value ?? ''}</div>` +
+                        `<div class="xai-finding-ref">Tham chiếu: ${ref}</div>` +
+                        `<div class="xai-finding-note"><span class="xai-icd-label">ICD-10 tham khảo:</span><span class="xai-icd-value"><b>${code}</b>${name ? `<em> · ${name}</em>` : ''}</span></div>` +
+                    '</div>' +
+                '</div>'
+            );
+        }).join('');
+    }
+
     function buildCanLamSangReportHtml(r) {
         if (!r) return '<div>Chưa có báo cáo.</div>';
 
-        const missingHtml =
-            r.missingLabels && r.missingLabels.length
-                ? (
-                    '<div style="margin-bottom:14px;">' +
-                    '<div style="font-weight:800;color:#92400e;margin-bottom:6px;">' +
-                    '⚠️ Thiếu thông số:</div>' +
-                    '<ul style="margin:0;padding-left:20px;">' +
-                    r.missingLabels.map(l => `<li>${l}</li>`).join('') +
-                    '</ul>' +
-                    `<div class="mnm-note">${KHOA_XN_CONTACT_MSG}</div>` +
-                    '</div>'
-                )
-                : '';
+        const findingCount = Array.isArray(r.findings) ? r.findings.length : 0;
+        const missingCount = Array.isArray(r.missingLabels) ? r.missingLabels.length : 0;
+        const patientLine = [
+            r.sidThat ? `SID ${r.sidThat}` : '',
+            r.tuoi ? `Năm sinh ${r.tuoi}` : '',
+            r.gioiTinh || ''
+        ].filter(Boolean).join(' · ');
 
-        const findingsHtml =
-            r.findings && r.findings.length
-                ? renderFindingsHtml(r.findings)
-                : '<div class="madp-no-abnormal">✓ Không phát hiện kết quả bất thường theo khoảng tham khảo.</div>';
+        const missingHtml = missingCount
+            ? (
+                '<section class="xai-section xai-missing">' +
+                    '<div class="xai-section-title">Chưa có kết quả</div>' +
+                    '<div class="xai-chip-list">' +
+                    r.missingLabels.map(l => `<span class="xai-chip">${l}</span>`).join('') +
+                    '</div>' +
+                '</section>'
+            )
+            : '';
 
         return (
-            '<div class="mnm-patient-card" style="margin-bottom:14px;">' +
-            `<span>SID</span><b>${r.sidThat}</b>` +
-            `<span>Họ tên</span><b>${r.tenBenhNhan}</b>` +
-            `<span>Tuổi</span><b>${r.tuoi}</b>` +
-            `<span>Giới tính</span><b>${r.gioiTinh}</b>` +
-            '</div>' +
-            missingHtml +
-            findingsHtml +
-            '<div class="madp-save-reminder">💾 AUTO chỉ điền dữ liệu. Hãy bấm “Lưu thay đổi” trước khi chuyển tab.</div>'
+            '<div class="xai-report">' +
+                '<header class="xai-patient">' +
+                    `<div class="xai-patient-name">${r.tenBenhNhan || ''}</div>` +
+                    `<div class="xai-patient-meta">${patientLine}</div>` +
+                '</header>' +
+                '<div class="xai-summary">' +
+                    `<div class="xai-stat xai-stat-warn"><span>Cần kiểm tra</span><b>${findingCount}</b></div>` +
+                    `<div class="xai-stat xai-stat-missing"><span>Thiếu kết quả</span><b>${missingCount}</b></div>` +
+                '</div>' +
+                missingHtml +
+                '<section class="xai-section">' +
+                    '<div class="xai-section-title">Chỉ số cần xem lại</div>' +
+                    '<div class="xai-findings">' + renderInspectorFindingsHtml(r.findings || []) + '</div>' +
+                '</section>' +
+                '<div class="xai-save">💾 Nhớ bấm “Lưu thay đổi” trước khi sang mục khác.</div>' +
+            '</div>'
         );
     }
 
     function showLatestCanLamSangReport(autoShown = false) {
+        restoreLastCanLamSangReport();
         if (!lastCanLamSangReport) {
             showAutoDockPanel(
                 'Chưa có báo cáo',
@@ -8126,8 +8167,8 @@ async function autoM2KhamLamSang() {
         );
 
         const title = hasWarning
-            ? `📋 ${r.tenBenhNhan} · Có kết quả cần kiểm tra`
-            : `📋 ${r.tenBenhNhan} · Kết quả xét nghiệm`;
+            ? 'Kết quả cần kiểm tra'
+            : 'Kết quả xét nghiệm';
 
         showAutoDockPanel(
             title,
@@ -9878,11 +9919,21 @@ async function autoM2KhamLamSang() {
 
     function showRunningSpeechBubble(message) {
         ensureUnifiedAutoSpeechBubbleStyles();
+        ensureUnifiedAutoV759Styles();
+        ensureUnifiedAutoV761Styles();
+        ensureUnifiedAutoV762Styles();
+        ensureUnifiedAutoV763Styles();
+        ensureUnifiedAutoV764Styles();
+        ensureUnifiedAutoV765Styles();
+        ensureUnifiedAutoV768Styles();
+        ensureUnifiedAutoV767Styles();
+        ensureUnifiedAutoV767Styles();
         ensureUnifiedAutoV745Styles();
         const model = unifiedAutoRuntime.model || getCurrentMedinetModel() || 'AUTO';
         showAutoDockPanel(
-            `${model} đang AUTO…`,
-            renderSpeechBodyHtml('Đang xử lý · Vui lòng chờ · Đừng chuyển tab.'),
+            `${model} · Đang tự động điền`,
+            renderSpeechBodyHtml(`Đang điền dữ liệu vào hồ sơ.
+Vui lòng giữ nguyên trang đến khi hoàn tất.`),
             'info',
             0
         );
@@ -10692,6 +10743,105 @@ async function autoM2KhamLamSang() {
         return `${location.href}|${title}|${getCurrentMedinetModel() || ''}`;
     }
 
+    function getCurrentPatientKey() {
+        if (isModelListPage()) return '';
+
+        try {
+            const url = new URL(location.href);
+            const params = url.searchParams;
+            const phieu =
+                params.get('phieukhamId') ||
+                params.get('phieuKhamId') ||
+                params.get('phieukhamid') ||
+                '';
+            const cdId =
+                params.get('cdId') ||
+                params.get('cdid') ||
+                '';
+            const model = getCurrentMedinetModel() || '';
+
+            if (phieu) return `${model}|phieu:${phieu}`;
+            if (cdId) return `${model}|cd:${cdId}`;
+
+            const pathIds = Array.from(url.pathname.matchAll(/\/(\d{5,})(?=\/|$)/g));
+            if (pathIds.length) {
+                return `${model}|path:${pathIds[pathIds.length - 1][1]}`;
+            }
+        } catch (e) {}
+
+        // Fallback DOM: chỉ dùng khi URL không có ID bệnh nhân.
+        try {
+            const body = document.body ? document.body.innerText : '';
+            const cccdMatch = body.match(/CCCD\s*:?\s*([0-9]{9,12})/i);
+            if (cccdMatch) {
+                return `${getCurrentMedinetModel() || ''}|cccd:${cccdMatch[1]}`;
+            }
+        } catch (e) {}
+
+        return '';
+    }
+
+    function saveLastCanLamSangReport() {
+        try {
+            if (!lastCanLamSangReport || !lastCanLamSangReportPatientKey) return;
+            sessionStorage.setItem(
+                LAST_CLS_REPORT_STORAGE_KEY,
+                JSON.stringify({
+                    patientKey: lastCanLamSangReportPatientKey,
+                    report: lastCanLamSangReport
+                })
+            );
+        } catch (e) {
+            console.warn(LOG, 'Không lưu được cảnh báo CLS theo bệnh nhân:', e);
+        }
+    }
+
+    function clearLastCanLamSangReport() {
+        lastCanLamSangReport = null;
+        lastCanLamSangReportPatientKey = '';
+        try {
+            sessionStorage.removeItem(LAST_CLS_REPORT_STORAGE_KEY);
+        } catch (e) {}
+        closeAutoDockPanel();
+        updateUnifiedAutoButton();
+    }
+
+    function restoreLastCanLamSangReport() {
+        if (isModelListPage()) {
+            clearLastCanLamSangReport();
+            return;
+        }
+
+        const currentPatientKey = getCurrentPatientKey();
+        if (!currentPatientKey) return;
+
+        if (
+            lastCanLamSangReport &&
+            lastCanLamSangReportPatientKey === currentPatientKey
+        ) {
+            return;
+        }
+
+        try {
+            const raw = sessionStorage.getItem(LAST_CLS_REPORT_STORAGE_KEY);
+            if (!raw) return;
+            const stored = JSON.parse(raw);
+            if (
+                stored &&
+                stored.patientKey === currentPatientKey &&
+                stored.report
+            ) {
+                lastCanLamSangReportPatientKey = stored.patientKey;
+                lastCanLamSangReport = stored.report;
+            } else if (stored && stored.patientKey && stored.patientKey !== currentPatientKey) {
+                // Tránh mang cảnh báo của bệnh nhân khác nếu mở hồ sơ trực tiếp.
+                clearLastCanLamSangReport();
+            }
+        } catch (e) {
+            console.warn(LOG, 'Không khôi phục được cảnh báo CLS:', e);
+        }
+    }
+
     function ensureAutoDockContextWatcher() {
         if (window.__medinetAutoDockContextWatcher) return;
         window.__medinetAutoDockContextWatcher = window.setInterval(() => {
@@ -10794,11 +10944,20 @@ async function autoM2KhamLamSang() {
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
         const plain = (tmp.innerText || tmp.textContent || '').trim();
+
+        // v7.77: Every CLS inspector report (xai-*) MUST use the
+        // content-driven responsive layout. The old detector only knew
+        // mnm-* classes, so xai reports could fall back to the compact
+        // ~350px notice layout and appear "fixed" regardless of content.
+        if (tmp.querySelector('.xai-report')) {
+            return true;
+        }
+
         return (
             plain.length > 650 ||
             tmp.querySelectorAll('li').length > 7 ||
             tmp.querySelectorAll('.mnm-finding-row').length > 4 ||
-            !!tmp.querySelector('.mnm-patient-card') && plain.length > 420
+            (!!tmp.querySelector('.mnm-patient-card') && plain.length > 420)
         );
     }
 
@@ -11197,9 +11356,4037 @@ async function autoM2KhamLamSang() {
         document.head.appendChild(style);
     }
 
+    function ensureUnifiedAutoV751Styles() {
+        if (document.getElementById('medinet-auto-v751-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v751-style';
+        style.textContent = `
+            /* =====================================================
+               v7.51 — ARC REACTOR REFINEMENT
+               - Bigger, cleaner reactor inspired by Iron Man chest core.
+               - Sits lower/right to avoid covering Medinet UI.
+               - Idle slow spin, running = fast spin + blue sparks.
+               ===================================================== */
+            #medinet-auto-unified {
+                width: 68px !important;
+                height: 68px !important;
+                right: 18px !important;
+                bottom: 18px !important;
+                overflow: visible !important;
+                border-radius: 50% !important;
+                filter:
+                    drop-shadow(0 6px 14px rgba(2,6,23,.34))
+                    drop-shadow(0 0 6px rgba(34,211,238,.22)) !important;
+            }
+
+            #medinet-auto-unified .mau-shell {
+                inset: 1px !important;
+                border: 1px solid rgba(147,197,253,.22) !important;
+                background:
+                    radial-gradient(circle at 50% 50%, rgba(10,33,55,.35) 0 37%, rgba(7,22,38,.90) 38%, rgba(4,14,27,.98) 62%, #02060d 100%) !important;
+                box-shadow:
+                    inset 0 0 0 1px rgba(255,255,255,.05),
+                    inset 0 0 14px rgba(56,189,248,.08),
+                    0 0 0 1px rgba(2,6,23,.92),
+                    0 0 16px rgba(34,211,238,.12) !important;
+            }
+            #medinet-auto-unified .mau-shell::before {
+                inset: 7px !important;
+                border: 1px solid rgba(186,230,253,.17) !important;
+                box-shadow:
+                    inset 0 0 10px rgba(125,211,252,.08),
+                    0 0 6px rgba(34,211,238,.10) !important;
+                opacity: 1 !important;
+            }
+            #medinet-auto-unified .mau-shell::after {
+                content: '' !important;
+                position: absolute !important;
+                inset: 10px !important;
+                border-radius: 50% !important;
+                border: 1px dashed rgba(125,211,252,.18) !important;
+                box-shadow: 0 0 6px rgba(34,211,238,.10) inset !important;
+                opacity: 1 !important;
+            }
+
+            /* Outer reactor fins */
+            #medinet-auto-unified .mau-ring {
+                inset: 4px !important;
+                background: conic-gradient(
+                    from -18deg,
+                    rgba(255,255,255,.0) 0 12deg,
+                    rgba(224,242,254,.98) 12deg 16deg,
+                    rgba(56,189,248,.96) 16deg 28deg,
+                    rgba(2,6,23,0) 28deg 42deg,
+                    rgba(224,242,254,.94) 42deg 46deg,
+                    rgba(14,165,233,.90) 46deg 59deg,
+                    rgba(2,6,23,0) 59deg 74deg,
+                    rgba(224,242,254,.96) 74deg 78deg,
+                    rgba(34,211,238,.90) 78deg 91deg,
+                    rgba(2,6,23,0) 91deg 106deg,
+                    rgba(224,242,254,.96) 106deg 110deg,
+                    rgba(56,189,248,.90) 110deg 123deg,
+                    rgba(2,6,23,0) 123deg 138deg,
+                    rgba(224,242,254,.96) 138deg 142deg,
+                    rgba(14,165,233,.90) 142deg 155deg,
+                    rgba(2,6,23,0) 155deg 170deg,
+                    rgba(224,242,254,.96) 170deg 174deg,
+                    rgba(34,211,238,.90) 174deg 187deg,
+                    rgba(2,6,23,0) 187deg 202deg,
+                    rgba(224,242,254,.96) 202deg 206deg,
+                    rgba(56,189,248,.90) 206deg 219deg,
+                    rgba(2,6,23,0) 219deg 234deg,
+                    rgba(224,242,254,.96) 234deg 238deg,
+                    rgba(14,165,233,.90) 238deg 251deg,
+                    rgba(2,6,23,0) 251deg 266deg,
+                    rgba(224,242,254,.96) 266deg 270deg,
+                    rgba(34,211,238,.90) 270deg 283deg,
+                    rgba(2,6,23,0) 283deg 298deg,
+                    rgba(224,242,254,.96) 298deg 302deg,
+                    rgba(56,189,248,.90) 302deg 315deg,
+                    rgba(2,6,23,0) 315deg 330deg,
+                    rgba(224,242,254,.96) 330deg 334deg,
+                    rgba(14,165,233,.90) 334deg 347deg,
+                    rgba(2,6,23,0) 347deg 360deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0) !important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0) !important;
+                filter: drop-shadow(0 0 4px rgba(56,189,248,.35)) !important;
+            }
+            /* Inner segmented chamber */
+            #medinet-auto-unified .mau-ring2 {
+                inset: 13px !important;
+                background: conic-gradient(
+                    from 14deg,
+                    rgba(255,255,255,.0) 0 22deg,
+                    rgba(186,230,253,.95) 22deg 25deg,
+                    rgba(99,102,241,.56) 25deg 42deg,
+                    rgba(255,255,255,.0) 42deg 67deg,
+                    rgba(186,230,253,.92) 67deg 70deg,
+                    rgba(34,211,238,.74) 70deg 88deg,
+                    rgba(255,255,255,.0) 88deg 112deg,
+                    rgba(186,230,253,.95) 112deg 115deg,
+                    rgba(99,102,241,.56) 115deg 133deg,
+                    rgba(255,255,255,.0) 133deg 157deg,
+                    rgba(186,230,253,.92) 157deg 160deg,
+                    rgba(34,211,238,.74) 160deg 178deg,
+                    rgba(255,255,255,.0) 178deg 202deg,
+                    rgba(186,230,253,.95) 202deg 205deg,
+                    rgba(99,102,241,.56) 205deg 223deg,
+                    rgba(255,255,255,.0) 223deg 247deg,
+                    rgba(186,230,253,.92) 247deg 250deg,
+                    rgba(34,211,238,.74) 250deg 268deg,
+                    rgba(255,255,255,.0) 268deg 292deg,
+                    rgba(186,230,253,.95) 292deg 295deg,
+                    rgba(99,102,241,.56) 295deg 313deg,
+                    rgba(255,255,255,.0) 313deg 337deg,
+                    rgba(186,230,253,.92) 337deg 340deg,
+                    rgba(34,211,238,.74) 340deg 360deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0) !important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0) !important;
+                filter: drop-shadow(0 0 4px rgba(125,211,252,.28)) !important;
+            }
+
+            #medinet-auto-unified .mau-core {
+                inset: 16px !important;
+                background:
+                    radial-gradient(circle at 50% 50%, rgba(232,253,255,.98) 0 12%, rgba(154,246,255,.88) 13%, rgba(74,222,255,.68) 24%, rgba(10,86,115,.88) 48%, rgba(4,20,35,.98) 73%, rgba(1,8,18,.98) 100%) !important;
+                border: 1px solid rgba(191,244,255,.36) !important;
+                box-shadow:
+                    inset 0 0 10px rgba(255,255,255,.28),
+                    0 0 18px rgba(34,211,238,.24),
+                    0 0 3px rgba(255,255,255,.60) !important;
+                backdrop-filter: blur(.2px);
+            }
+            #medinet-auto-unified .mau-core::before {
+                content:'' !important;
+                position:absolute !important;
+                inset:7px !important;
+                border-radius:50% !important;
+                border:1px solid rgba(232,253,255,.30) !important;
+                box-shadow: inset 0 0 10px rgba(232,253,255,.16) !important;
+            }
+            #medinet-auto-unified .mau-model {
+                font-size: 20px !important;
+                line-height: 18px !important;
+                font-weight: 900 !important;
+                letter-spacing: -.2px !important;
+                color: #f8feff !important;
+                text-shadow: 0 0 5px rgba(255,255,255,.72), 0 0 10px rgba(103,232,249,.35) !important;
+            }
+            #medinet-auto-unified .mau-auto {
+                font-size: 6px !important;
+                letter-spacing: 1.1px !important;
+                font-weight: 800 !important;
+                color: #cffafe !important;
+                text-shadow: 0 0 6px rgba(34,211,238,.22) !important;
+            }
+
+            /* Always-on slow rotation */
+            #medinet-auto-unified .mau-ring {
+                animation: mau751-idle-outer 5.6s linear infinite !important;
+                will-change: rotate;
+            }
+            #medinet-auto-unified .mau-ring2 {
+                animation: mau751-idle-inner 8.2s linear infinite !important;
+                will-change: rotate;
+            }
+            @keyframes mau751-idle-outer { from { rotate: 0deg; } to { rotate: 360deg; } }
+            @keyframes mau751-idle-inner { from { rotate: 0deg; } to { rotate: -360deg; } }
+
+            /* Running = much faster + stronger core + blue sparks */
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation: mau751-run-outer .54s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation: mau751-run-inner .78s linear infinite !important;
+            }
+            @keyframes mau751-run-outer { from { rotate:0deg; } to { rotate:360deg; } }
+            @keyframes mau751-run-inner { from { rotate:0deg; } to { rotate:-360deg; } }
+
+            #medinet-auto-unified .mau-energy {
+                inset: -8px !important;
+                display: block !important;
+                opacity: .12 !important;
+                background: radial-gradient(circle, transparent 59%, rgba(255,255,255,.0) 60%), conic-gradient(
+                    from 0deg,
+                    transparent 0 282deg,
+                    rgba(232,253,255,.95) 283deg 287deg,
+                    rgba(167,243,255,.95) 288deg 297deg,
+                    rgba(34,211,238,.88) 298deg 312deg,
+                    transparent 313deg 360deg
+                ) !important;
+                filter: drop-shadow(0 0 4px rgba(34,211,238,.42)) drop-shadow(0 0 8px rgba(14,165,233,.25)) !important;
+                animation: none !important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity: 1 !important;
+                animation: mau751-energy .42s linear infinite !important;
+            }
+            @keyframes mau751-energy { from { rotate:0deg; } to { rotate:360deg; } }
+
+            #medinet-auto-unified .mau-sparks {
+                display: block !important;
+                position: absolute !important;
+                inset: -8px !important;
+                z-index: 30 !important;
+                pointer-events: none !important;
+                opacity: 0 !important;
+                visibility: hidden !important;
+            }
+            #medinet-auto-unified .mau-sparks i {
+                width: 5px !important;
+                height: 5px !important;
+                margin: -2.5px 0 0 -2.5px !important;
+                border-radius: 999px !important;
+                background: radial-gradient(circle, #ffffff 0 30%, #a5f3fc 31% 58%, #22d3ee 59% 100%) !important;
+                box-shadow:
+                    0 0 5px rgba(255,255,255,.95),
+                    0 0 10px rgba(103,232,249,.95),
+                    0 0 18px rgba(34,211,238,.85),
+                    0 0 25px rgba(14,165,233,.60) !important;
+                opacity: 0 !important;
+            }
+            #medinet-auto-unified .mau-sparks i:nth-child(1) { transform: rotate(10deg) translateY(-42px) scale(.95) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(2) { transform: rotate(76deg) translateY(-39px) scale(.72) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(3) { transform: rotate(148deg) translateY(-43px) scale(.86) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(4) { transform: rotate(224deg) translateY(-40px) scale(.62) !important; }
+            #medinet-auto-unified .mau-sparks i:nth-child(5) { transform: rotate(310deg) translateY(-44px) scale(.78) !important; }
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity: 1 !important;
+                visibility: visible !important;
+                animation: mau751-spark-orbit .64s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i {
+                animation: mau751-spark-burst .34s ease-in-out infinite alternate !important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(2) { animation-delay: -.08s !important; }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(3) { animation-delay: -.17s !important; }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(4) { animation-delay: -.26s !important; }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(5) { animation-delay: -.13s !important; }
+            @keyframes mau751-spark-orbit { from { rotate:0deg; } to { rotate:360deg; } }
+            @keyframes mau751-spark-burst {
+                0%   { opacity: .18; filter: brightness(.8); }
+                45%  { opacity: 1; filter: brightness(2.1); }
+                100% { opacity: .42; filter: brightness(1.1); }
+            }
+            #medinet-auto-unified.mau-running .mau-core {
+                animation: mau751-core-pulse .68s ease-in-out infinite alternate !important;
+            }
+            @keyframes mau751-core-pulse {
+                from {
+                    box-shadow:
+                        inset 0 0 10px rgba(255,255,255,.22),
+                        0 0 12px rgba(34,211,238,.20),
+                        0 0 3px rgba(255,255,255,.48);
+                }
+                to {
+                    box-shadow:
+                        inset 0 0 16px rgba(255,255,255,.34),
+                        0 0 22px rgba(34,211,238,.36),
+                        0 0 6px rgba(255,255,255,.72);
+                }
+            }
+
+            #medinet-auto-unified .mau-warning {
+                top: -7px !important;
+                right: -7px !important;
+                width: 28px !important;
+                height: 28px !important;
+            }
+            #medinet-auto-unified .mau-warning::before {
+                width: 17px !important;
+                height: 17px !important;
+                font-size: 11px !important;
+            }
+
+            #medinet-auto-dock-panel {
+                right: 96px !important;
+                bottom: 92px !important;
+                width: min(340px, calc(100vw - 122px)) !important;
+            }
+            #medinet-auto-dock-panel::after {
+                right: 24px !important;
+                bottom: -12px !important;
+            }
+            .mnm-toast,
+            #medinet-auto-notice {
+                right: 96px !important;
+                bottom: 92px !important;
+            }
+
+            @media (max-width:640px) {
+                #medinet-auto-unified {
+                    width: 62px !important;
+                    height: 62px !important;
+                    right: 12px !important;
+                    bottom: 12px !important;
+                }
+                #medinet-auto-unified .mau-core {
+                    inset: 15px !important;
+                }
+                #medinet-auto-unified .mau-model {
+                    font-size: 18px !important;
+                }
+                #medinet-auto-dock-panel,
+                #medinet-auto-notice,
+                .mnm-toast {
+                    right: 78px !important;
+                    bottom: 80px !important;
+                    width: min(290px, calc(100vw - 92px)) !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV752Styles() {
+        if (document.getElementById('medinet-auto-v752-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v752-style';
+        style.textContent = `
+            /* =====================================================
+               v7.52 — ARC CORE / HIGH SPEED PLASMA
+               Stronger chest-reactor geometry + visible speed streaks.
+               ===================================================== */
+            #medinet-auto-unified {
+                width: 72px !important;
+                height: 72px !important;
+                right: 14px !important;
+                bottom: 14px !important;
+                filter:
+                    drop-shadow(0 7px 16px rgba(2,6,23,.34))
+                    drop-shadow(0 0 9px rgba(34,211,238,.28)) !important;
+            }
+
+            /* Dark metallic housing */
+            #medinet-auto-unified .mau-shell {
+                inset: 0 !important;
+                background:
+                    radial-gradient(circle at 50% 50%, transparent 0 39%, rgba(6,18,31,.70) 40% 55%, rgba(1,7,14,.98) 72% 100%),
+                    conic-gradient(from 4deg,#101827,#050b13 18deg,#1b2b3d 36deg,#060b12 54deg,#142234 72deg,#050b12 90deg,#1a2a3b 108deg,#050a11 126deg,#162536 144deg,#050a11 162deg,#142235 180deg,#050a11 198deg,#18293a 216deg,#050a11 234deg,#142537 252deg,#050a11 270deg,#18283a 288deg,#050a11 306deg,#142436 324deg,#050a11 342deg,#101827 360deg) !important;
+                border:1px solid rgba(148,163,184,.24)!important;
+                box-shadow:
+                    inset 0 0 0 2px rgba(0,0,0,.55),
+                    inset 0 0 14px rgba(56,189,248,.06),
+                    0 0 0 1px rgba(255,255,255,.025),
+                    0 0 15px rgba(34,211,238,.14)!important;
+            }
+            #medinet-auto-unified .mau-shell::before {
+                inset: 7px !important;
+                border: 1px solid rgba(186,230,253,.20)!important;
+                background:
+                    repeating-conic-gradient(from 0deg,
+                        rgba(125,211,252,.18) 0 3deg,
+                        transparent 3deg 33deg
+                    ) !important;
+                box-shadow: inset 0 0 10px rgba(56,189,248,.08)!important;
+                opacity:1!important;
+            }
+            #medinet-auto-unified .mau-shell::after {
+                inset: 12px !important;
+                border-radius:50%!important;
+                border:1px solid rgba(103,232,249,.15)!important;
+                background: repeating-conic-gradient(from 18deg, rgba(255,255,255,.18) 0 2deg, transparent 2deg 36deg)!important;
+                box-shadow:0 0 8px rgba(34,211,238,.10) inset!important;
+                opacity:1!important;
+            }
+
+            /* Outer segmented turbine ring */
+            #medinet-auto-unified .mau-ring {
+                inset: 3px !important;
+                background: repeating-conic-gradient(
+                    from 0deg,
+                    rgba(224,242,254,.95) 0 3deg,
+                    rgba(56,189,248,.95) 3deg 11deg,
+                    rgba(14,116,144,.65) 11deg 17deg,
+                    transparent 17deg 30deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0)!important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0)!important;
+                filter: drop-shadow(0 0 4px rgba(34,211,238,.38))!important;
+            }
+
+            /* Inner energy vanes: radial triangular look */
+            #medinet-auto-unified .mau-ring2 {
+                inset: 12px !important;
+                background: conic-gradient(
+                    from 0deg,
+                    rgba(207,250,254,.0) 0 6deg, rgba(207,250,254,.95) 6deg 10deg, rgba(34,211,238,.78) 10deg 22deg, rgba(207,250,254,.0) 22deg 36deg,
+                    rgba(207,250,254,.95) 36deg 40deg, rgba(34,211,238,.78) 40deg 52deg, rgba(207,250,254,.0) 52deg 72deg,
+                    rgba(207,250,254,.95) 72deg 76deg, rgba(34,211,238,.78) 76deg 88deg, rgba(207,250,254,.0) 88deg 108deg,
+                    rgba(207,250,254,.95) 108deg 112deg, rgba(34,211,238,.78) 112deg 124deg, rgba(207,250,254,.0) 124deg 144deg,
+                    rgba(207,250,254,.95) 144deg 148deg, rgba(34,211,238,.78) 148deg 160deg, rgba(207,250,254,.0) 160deg 180deg,
+                    rgba(207,250,254,.95) 180deg 184deg, rgba(34,211,238,.78) 184deg 196deg, rgba(207,250,254,.0) 196deg 216deg,
+                    rgba(207,250,254,.95) 216deg 220deg, rgba(34,211,238,.78) 220deg 232deg, rgba(207,250,254,.0) 232deg 252deg,
+                    rgba(207,250,254,.95) 252deg 256deg, rgba(34,211,238,.78) 256deg 268deg, rgba(207,250,254,.0) 268deg 288deg,
+                    rgba(207,250,254,.95) 288deg 292deg, rgba(34,211,238,.78) 292deg 304deg, rgba(207,250,254,.0) 304deg 324deg,
+                    rgba(207,250,254,.95) 324deg 328deg, rgba(34,211,238,.78) 328deg 340deg, rgba(207,250,254,.0) 340deg 360deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 0)!important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 0)!important;
+                filter: drop-shadow(0 0 5px rgba(103,232,249,.46))!important;
+            }
+
+            /* Bright reactor core */
+            #medinet-auto-unified .mau-core {
+                inset: 18px !important;
+                background:
+                    radial-gradient(circle at 50% 50%, #ffffff 0 7%, #dffcff 8% 18%, #8cf4ff 19% 32%, #22d3ee 33% 43%, #0e7490 44% 58%, #082f49 59% 76%, #020812 77% 100%) !important;
+                border:1px solid rgba(224,252,255,.60)!important;
+                box-shadow:
+                    inset 0 0 8px rgba(255,255,255,.92),
+                    inset 0 0 18px rgba(103,232,249,.45),
+                    0 0 10px rgba(207,250,254,.55),
+                    0 0 24px rgba(34,211,238,.28)!important;
+            }
+            #medinet-auto-unified .mau-core::before {
+                inset: 5px !important;
+                border:1px solid rgba(255,255,255,.48)!important;
+                box-shadow:0 0 10px rgba(207,250,254,.30) inset!important;
+            }
+            #medinet-auto-unified .mau-model {
+                font-size: 20px !important;
+                line-height: 18px !important;
+                color:#ffffff!important;
+                text-shadow:0 0 4px #fff,0 0 9px rgba(103,232,249,.75)!important;
+            }
+            #medinet-auto-unified .mau-auto {
+                font-size:6px!important;
+                color:#e6feff!important;
+                letter-spacing:1.05px!important;
+            }
+
+            /* IDLE */
+            #medinet-auto-unified .mau-ring { animation:mau752-idle-a 5.2s linear infinite!important; }
+            #medinet-auto-unified .mau-ring2 { animation:mau752-idle-b 7.6s linear infinite!important; }
+            @keyframes mau752-idle-a { from{rotate:0deg} to{rotate:360deg} }
+            @keyframes mau752-idle-b { from{rotate:0deg} to{rotate:-360deg} }
+
+            /* ACTIVE speed */
+            #medinet-auto-unified.mau-running .mau-ring { animation:mau752-run-a .34s linear infinite!important; }
+            #medinet-auto-unified.mau-running .mau-ring2 { animation:mau752-run-b .48s linear infinite!important; }
+            @keyframes mau752-run-a { from{rotate:0deg} to{rotate:360deg} }
+            @keyframes mau752-run-b { from{rotate:0deg} to{rotate:-360deg} }
+
+            /* Motion streak halo while running */
+            #medinet-auto-unified .mau-energy {
+                display:block!important;
+                inset:-10px!important;
+                opacity:0!important;
+                background:conic-gradient(
+                    from 0deg,
+                    transparent 0 245deg,
+                    rgba(255,255,255,.0) 245deg 258deg,
+                    rgba(255,255,255,.95) 259deg 263deg,
+                    rgba(165,243,252,.95) 264deg 281deg,
+                    rgba(34,211,238,.78) 282deg 309deg,
+                    rgba(14,165,233,.22) 310deg 334deg,
+                    transparent 335deg 360deg
+                )!important;
+                filter:blur(.15px) drop-shadow(0 0 4px rgba(103,232,249,.78)) drop-shadow(0 0 10px rgba(34,211,238,.40))!important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity:1!important;
+                animation:mau752-speed-halo .24s linear infinite!important;
+            }
+            @keyframes mau752-speed-halo { from{rotate:0deg} to{rotate:360deg} }
+
+            /* Visible plasma streak sparks, not dots */
+            #medinet-auto-unified .mau-sparks {
+                display:block!important;
+                position:absolute!important;
+                inset:-14px!important;
+                pointer-events:none!important;
+                opacity:0!important;
+                visibility:hidden!important;
+                z-index:40!important;
+            }
+            #medinet-auto-unified .mau-sparks i {
+                display:block!important;
+                position:absolute!important;
+                left:50%!important;
+                top:50%!important;
+                width:15px!important;
+                height:3px!important;
+                margin:-1.5px 0 0 -7.5px!important;
+                border-radius:999px!important;
+                background:linear-gradient(90deg,rgba(255,255,255,0),#dffcff 45%,#67e8f9 70%,rgba(34,211,238,0))!important;
+                box-shadow:0 0 4px #fff,0 0 8px #67e8f9,0 0 13px rgba(34,211,238,.78)!important;
+                transform-origin:7.5px 1.5px!important;
+                opacity:0!important;
+                filter:blur(.1px)!important;
+            }
+            #medinet-auto-unified .mau-sparks i:nth-child(1){transform:rotate(18deg) translateY(-45px) rotate(78deg)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(2){transform:rotate(86deg) translateY(-41px) rotate(78deg) scale(.82)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(3){transform:rotate(157deg) translateY(-46px) rotate(78deg) scale(.9)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(4){transform:rotate(236deg) translateY(-42px) rotate(78deg) scale(.72)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(5){transform:rotate(314deg) translateY(-47px) rotate(78deg) scale(.84)!important;}
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity:1!important;
+                visibility:visible!important;
+                animation:mau752-spark-orbit .46s linear infinite!important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i {
+                animation:mau752-streak-pulse .22s ease-in-out infinite alternate!important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(2){animation-delay:-.05s!important;}
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(3){animation-delay:-.11s!important;}
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(4){animation-delay:-.16s!important;}
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(5){animation-delay:-.09s!important;}
+            @keyframes mau752-spark-orbit{from{rotate:0deg}to{rotate:360deg}}
+            @keyframes mau752-streak-pulse{
+                0%{opacity:.18;scale:.65 1;}
+                45%{opacity:1;scale:1.35 1;}
+                100%{opacity:.38;scale:.9 1;}
+            }
+
+            #medinet-auto-unified.mau-running {
+                filter:
+                    drop-shadow(0 7px 16px rgba(2,6,23,.36))
+                    drop-shadow(0 0 12px rgba(34,211,238,.80))
+                    drop-shadow(0 0 22px rgba(14,165,233,.30))!important;
+            }
+            #medinet-auto-unified.mau-running .mau-core {
+                animation:mau752-core-pulse .42s ease-in-out infinite alternate!important;
+            }
+            @keyframes mau752-core-pulse {
+                from{filter:brightness(1);}
+                to{filter:brightness(1.32);}
+            }
+
+            #medinet-auto-unified .mau-warning { top:-6px!important;right:-6px!important; }
+
+            #medinet-auto-dock-panel, #medinet-auto-notice, .mnm-toast {
+                right:100px!important;
+                bottom:94px!important;
+            }
+            @media(max-width:640px){
+                #medinet-auto-unified{width:64px!important;height:64px!important;right:10px!important;bottom:10px!important;}
+                #medinet-auto-unified .mau-core{inset:16px!important;}
+                #medinet-auto-unified .mau-model{font-size:18px!important;}
+                #medinet-auto-dock-panel,#medinet-auto-notice,.mnm-toast{right:78px!important;bottom:80px!important;}
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV753Styles() {
+        if (document.getElementById('medinet-auto-v753-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v753-style';
+        style.textContent = `
+            /* =====================================================
+               v7.53 — ARC REACTOR BOOST
+               Dark readable core + bright energy annulus + visible plasma bolts.
+               ===================================================== */
+            #medinet-auto-unified {
+                width:76px!important;
+                height:76px!important;
+                right:10px!important;
+                bottom:8px!important;
+                overflow:visible!important;
+                filter:drop-shadow(0 8px 18px rgba(2,6,23,.38)) drop-shadow(0 0 10px rgba(34,211,238,.26))!important;
+            }
+
+            /* Housing: deeper gunmetal, thinner cyan accents. */
+            #medinet-auto-unified .mau-shell {
+                inset:0!important;
+                background:
+                    radial-gradient(circle at 50% 50%, transparent 0 46%, rgba(5,16,28,.82) 47% 62%, rgba(1,7,14,.99) 75% 100%),
+                    repeating-conic-gradient(from 3deg,#182638 0 8deg,#060b12 8deg 18deg,#21374b 18deg 24deg,#050a11 24deg 36deg)!important;
+                border:1px solid rgba(148,163,184,.24)!important;
+                box-shadow:inset 0 0 0 2px rgba(0,0,0,.60), inset 0 0 18px rgba(56,189,248,.07), 0 0 0 1px rgba(255,255,255,.025), 0 0 17px rgba(34,211,238,.14)!important;
+            }
+            #medinet-auto-unified .mau-shell::before {
+                inset:7px!important;
+                background:repeating-conic-gradient(from 0deg,rgba(186,230,253,.24) 0 2deg,transparent 2deg 28deg)!important;
+                border:1px solid rgba(125,211,252,.18)!important;
+                box-shadow:inset 0 0 12px rgba(34,211,238,.08)!important;
+                opacity:1!important;
+            }
+            #medinet-auto-unified .mau-shell::after {
+                inset:12px!important;
+                border:1px solid rgba(103,232,249,.16)!important;
+                background:repeating-conic-gradient(from 14deg,rgba(224,252,255,.20) 0 2deg,transparent 2deg 24deg)!important;
+                opacity:1!important;
+            }
+
+            /* Outer mechanical reactor ring. */
+            #medinet-auto-unified .mau-ring {
+                inset:3px!important;
+                background:repeating-conic-gradient(from -3deg,
+                    rgba(236,254,255,.98) 0 2deg,
+                    rgba(103,232,249,.98) 2deg 7deg,
+                    rgba(8,145,178,.72) 7deg 12deg,
+                    transparent 12deg 24deg)!important;
+                -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0)!important;
+                mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0)!important;
+                filter:drop-shadow(0 0 4px rgba(34,211,238,.42))!important;
+            }
+
+            /* Inner ten-vane energy chamber. */
+            #medinet-auto-unified .mau-ring2 {
+                inset:12px!important;
+                background:repeating-conic-gradient(from 0deg,
+                    transparent 0 8deg,
+                    rgba(238,254,255,.98) 8deg 11deg,
+                    rgba(103,232,249,.95) 11deg 17deg,
+                    rgba(14,165,233,.70) 17deg 25deg,
+                    transparent 25deg 36deg)!important;
+                -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 9px),#000 0)!important;
+                mask:radial-gradient(farthest-side,transparent calc(100% - 9px),#000 0)!important;
+                filter:drop-shadow(0 0 5px rgba(103,232,249,.48))!important;
+            }
+
+            /* Readable center: dark center + bright annulus, instead of all-white glare. */
+            #medinet-auto-unified .mau-core {
+                inset:18px!important;
+                background:
+                    radial-gradient(circle at 50% 52%,
+                        #03111d 0 34%,
+                        #082f49 35% 45%,
+                        #22d3ee 46% 52%,
+                        #a5f3fc 53% 58%,
+                        #e8feff 59% 63%,
+                        #0e7490 64% 72%,
+                        #03101d 73% 100%)!important;
+                border:1px solid rgba(224,252,255,.58)!important;
+                box-shadow:inset 0 0 10px rgba(255,255,255,.22), inset 0 0 18px rgba(34,211,238,.30), 0 0 10px rgba(207,250,254,.50), 0 0 24px rgba(34,211,238,.26)!important;
+                z-index:50!important;
+            }
+            #medinet-auto-unified .mau-core::before {
+                inset:4px!important;
+                border:1px solid rgba(255,255,255,.34)!important;
+                background:radial-gradient(circle,rgba(0,0,0,.18) 0 48%,transparent 49%)!important;
+                box-shadow:0 0 9px rgba(103,232,249,.24) inset!important;
+            }
+            #medinet-auto-unified .mau-model {
+                position:relative!important;
+                z-index:70!important;
+                font-size:22px!important;
+                line-height:20px!important;
+                font-weight:950!important;
+                letter-spacing:-.5px!important;
+                color:#ffffff!important;
+                -webkit-text-stroke:.35px rgba(2,18,30,.95)!important;
+                text-shadow:0 1px 1px rgba(0,0,0,.92),0 0 4px rgba(255,255,255,.78),0 0 8px rgba(103,232,249,.48)!important;
+                opacity:1!important;
+            }
+            #medinet-auto-unified .mau-auto {
+                position:relative!important;
+                z-index:70!important;
+                margin-top:1px!important;
+                font-size:7px!important;
+                line-height:7px!important;
+                font-weight:900!important;
+                letter-spacing:1.25px!important;
+                color:#d9fbff!important;
+                -webkit-text-stroke:.2px rgba(2,18,30,.9)!important;
+                text-shadow:0 1px 1px rgba(0,0,0,.9),0 0 5px rgba(34,211,238,.55)!important;
+                opacity:1!important;
+            }
+
+            /* Idle: elegant slow motion. */
+            #medinet-auto-unified .mau-ring { animation:mau753-idle-a 5.6s linear infinite!important; }
+            #medinet-auto-unified .mau-ring2 { animation:mau753-idle-b 8.4s linear infinite!important; }
+            @keyframes mau753-idle-a{from{rotate:0deg}to{rotate:360deg}}
+            @keyframes mau753-idle-b{from{rotate:0deg}to{rotate:-360deg}}
+
+            /* Boost: unmistakably fast. */
+            #medinet-auto-unified.mau-running .mau-ring { animation:mau753-run-a .28s linear infinite!important; }
+            #medinet-auto-unified.mau-running .mau-ring2 { animation:mau753-run-b .39s linear infinite!important; }
+            @keyframes mau753-run-a{from{rotate:0deg}to{rotate:360deg}}
+            @keyframes mau753-run-b{from{rotate:0deg}to{rotate:-360deg}}
+
+            /* Speed halo: multiple luminous arcs rather than one small arc. */
+            #medinet-auto-unified .mau-energy {
+                display:block!important;
+                inset:-12px!important;
+                opacity:0!important;
+                background:conic-gradient(from 0deg,
+                    transparent 0 38deg,
+                    rgba(255,255,255,.0) 38deg 43deg,
+                    rgba(222,252,255,.96) 43deg 47deg,
+                    rgba(34,211,238,.82) 47deg 66deg,
+                    transparent 66deg 142deg,
+                    rgba(255,255,255,.0) 142deg 147deg,
+                    rgba(222,252,255,.92) 147deg 151deg,
+                    rgba(14,165,233,.72) 151deg 171deg,
+                    transparent 171deg 253deg,
+                    rgba(222,252,255,.95) 253deg 257deg,
+                    rgba(34,211,238,.78) 257deg 278deg,
+                    transparent 278deg 360deg)!important;
+                -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0)!important;
+                mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0)!important;
+                filter:drop-shadow(0 0 5px rgba(103,232,249,.90)) drop-shadow(0 0 12px rgba(34,211,238,.55))!important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity:1!important;
+                animation:mau753-speed .18s linear infinite!important;
+            }
+            @keyframes mau753-speed{from{rotate:0deg}to{rotate:360deg}}
+
+            /* Real visible plasma bolts: bright head + long fading tail. */
+            #medinet-auto-unified .mau-sparks {
+                display:block!important;
+                position:absolute!important;
+                inset:-20px!important;
+                z-index:90!important;
+                pointer-events:none!important;
+                overflow:visible!important;
+                opacity:0!important;
+                visibility:hidden!important;
+            }
+            #medinet-auto-unified .mau-sparks i {
+                display:block!important;
+                position:absolute!important;
+                left:50%!important;
+                top:50%!important;
+                width:25px!important;
+                height:4px!important;
+                margin:-2px 0 0 -2px!important;
+                border-radius:999px!important;
+                background:linear-gradient(90deg,#ffffff 0 8%,#bffcff 9% 21%,#67e8f9 22% 46%,rgba(34,211,238,.55) 47% 68%,rgba(14,165,233,0) 100%)!important;
+                box-shadow:0 0 4px #fff,0 0 9px #67e8f9,0 0 16px rgba(34,211,238,.88),0 0 24px rgba(14,165,233,.58)!important;
+                transform-origin:2px 2px!important;
+                opacity:0!important;
+                filter:none!important;
+            }
+            #medinet-auto-unified .mau-sparks i::before {
+                content:''!important;
+                position:absolute!important;
+                left:-2px!important;
+                top:-2px!important;
+                width:8px!important;
+                height:8px!important;
+                border-radius:50%!important;
+                background:#ffffff!important;
+                box-shadow:0 0 5px #fff,0 0 11px #a5f3fc,0 0 18px #22d3ee!important;
+            }
+            #medinet-auto-unified .mau-sparks i::after {
+                content:''!important;
+                position:absolute!important;
+                left:7px!important;
+                top:1px!important;
+                width:31px!important;
+                height:2px!important;
+                border-radius:999px!important;
+                background:linear-gradient(90deg,rgba(103,232,249,.68),rgba(34,211,238,.26),transparent)!important;
+                filter:blur(.35px)!important;
+            }
+            #medinet-auto-unified .mau-sparks i:nth-child(1){transform:rotate(10deg) translateY(-48px) rotate(82deg)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(2){transform:rotate(79deg) translateY(-44px) rotate(82deg) scale(.78)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(3){transform:rotate(151deg) translateY(-49px) rotate(82deg) scale(.92)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(4){transform:rotate(231deg) translateY(-45px) rotate(82deg) scale(.70)!important;}
+            #medinet-auto-unified .mau-sparks i:nth-child(5){transform:rotate(309deg) translateY(-50px) rotate(82deg) scale(.84)!important;}
+
+            /* Two extra bolts so burst never looks empty. */
+            #medinet-auto-unified .mau-sparks::before,
+            #medinet-auto-unified .mau-sparks::after {
+                content:''!important;
+                position:absolute!important;
+                left:50%!important;
+                top:50%!important;
+                width:30px!important;
+                height:3px!important;
+                border-radius:999px!important;
+                background:linear-gradient(90deg,#fff,#a5f3fc 22%,#22d3ee 48%,rgba(14,165,233,0) 100%)!important;
+                box-shadow:0 0 5px #fff,0 0 10px #67e8f9,0 0 18px rgba(34,211,238,.8)!important;
+                opacity:0!important;
+                transform-origin:0 50%!important;
+            }
+            #medinet-auto-unified .mau-sparks::before { transform:rotate(42deg) translateX(45px)!important; }
+            #medinet-auto-unified .mau-sparks::after { transform:rotate(205deg) translateX(46px)!important; }
+
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity:1!important;
+                visibility:visible!important;
+                animation:mau753-orbit .34s linear infinite!important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i {
+                animation:mau753-bolt .19s ease-in-out infinite alternate!important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks::before,
+            #medinet-auto-unified.mau-running .mau-sparks::after {
+                animation:mau753-extra-bolt .23s ease-in-out infinite alternate!important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(2){animation-delay:-.04s!important;}
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(3){animation-delay:-.09s!important;}
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(4){animation-delay:-.14s!important;}
+            #medinet-auto-unified.mau-running .mau-sparks i:nth-child(5){animation-delay:-.07s!important;}
+            @keyframes mau753-orbit{from{rotate:0deg}to{rotate:360deg}}
+            @keyframes mau753-bolt{
+                0%{opacity:.08;scale:.55 1;}
+                40%{opacity:1;scale:1.35 1;}
+                100%{opacity:.30;scale:.85 1;}
+            }
+            @keyframes mau753-extra-bolt{
+                0%{opacity:0;scale:.55 1;}
+                50%{opacity:1;scale:1.25 1;}
+                100%{opacity:.18;scale:.8 1;}
+            }
+
+            #medinet-auto-unified.mau-running {
+                filter:drop-shadow(0 8px 18px rgba(2,6,23,.40)) drop-shadow(0 0 14px rgba(34,211,238,.88)) drop-shadow(0 0 28px rgba(14,165,233,.34))!important;
+            }
+            #medinet-auto-unified.mau-running .mau-core {
+                animation:mau753-core .28s ease-in-out infinite alternate!important;
+            }
+            @keyframes mau753-core{
+                from{filter:brightness(1) saturate(1);}
+                to{filter:brightness(1.24) saturate(1.18);}
+            }
+
+            #medinet-auto-unified .mau-warning{top:-5px!important;right:-5px!important;z-index:120!important;}
+
+            #medinet-auto-dock-panel,#medinet-auto-notice,.mnm-toast{
+                right:104px!important;
+                bottom:92px!important;
+            }
+            @media(max-width:640px){
+                #medinet-auto-unified{width:68px!important;height:68px!important;right:8px!important;bottom:7px!important;}
+                #medinet-auto-unified .mau-core{inset:17px!important;}
+                #medinet-auto-unified .mau-model{font-size:20px!important;}
+                #medinet-auto-unified .mau-auto{font-size:6.5px!important;}
+                #medinet-auto-dock-panel,#medinet-auto-notice,.mnm-toast{right:82px!important;bottom:80px!important;}
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV754Styles() {
+        if (document.getElementById('medinet-auto-v754-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v754-style';
+        style.textContent = `
+            /* =====================================================
+               v7.54 — UNIFIED ARC-REACTOR UI + RANDOM PLASMA
+               ===================================================== */
+
+            /* ---------- SEARCH / CONFIRM MODALS ---------- */
+            .mnm-overlay {
+                background: rgba(2,8,18,.62) !important;
+                backdrop-filter: blur(5px) saturate(1.05) !important;
+            }
+            .mnm-box {
+                width: min(500px,92vw) !important;
+                background: linear-gradient(165deg,rgba(6,18,34,.985),rgba(3,10,22,.985)) !important;
+                color:#eafaff !important;
+                border:1px solid rgba(103,232,249,.26) !important;
+                border-radius:20px !important;
+                box-shadow:
+                    0 26px 70px rgba(2,6,23,.52),
+                    0 0 0 1px rgba(255,255,255,.025) inset,
+                    0 0 30px rgba(34,211,238,.10) !important;
+                overflow:hidden !important;
+            }
+            .mnm-header {
+                padding:16px 18px !important;
+                color:#f4fdff !important;
+                background:linear-gradient(90deg,rgba(8,47,73,.72),rgba(4,12,24,.28)) !important;
+                border-bottom:1px solid rgba(125,211,252,.14) !important;
+                font-size:15px !important;
+                font-weight:850 !important;
+                letter-spacing:.1px !important;
+                text-shadow:0 0 8px rgba(103,232,249,.16) !important;
+            }
+            .mnm-header.mnm-warn { color:#fde68a !important; }
+            .mnm-header.mnm-ok { color:#bbf7d0 !important; }
+            .mnm-tabs {
+                padding:0 18px !important;
+                background:rgba(3,10,22,.92) !important;
+                border-bottom:1px solid rgba(125,211,252,.10) !important;
+            }
+            .mnm-tab {
+                padding:12px 14px !important;
+                color:#89a6bc !important;
+                font-weight:750 !important;
+                border-bottom:2px solid transparent !important;
+            }
+            .mnm-tab.mnm-tab-active {
+                color:#d9fbff !important;
+                border-bottom-color:#22d3ee !important;
+                text-shadow:0 0 9px rgba(34,211,238,.24) !important;
+            }
+            .mnm-body {
+                padding:18px !important;
+                color:#cfe4f2 !important;
+                background:linear-gradient(180deg,rgba(5,15,28,.96),rgba(3,10,20,.97)) !important;
+            }
+            .mnm-input-label {
+                color:#ccebf6 !important;
+                font-size:12.5px !important;
+                font-weight:750 !important;
+                margin-bottom:7px !important;
+            }
+            .mnm-input,
+            .mnm-select {
+                color:#f5fdff !important;
+                background:linear-gradient(180deg,rgba(10,26,44,.96),rgba(7,18,32,.96)) !important;
+                border:1px solid rgba(125,211,252,.20) !important;
+                border-radius:11px !important;
+                box-shadow:inset 0 0 0 1px rgba(255,255,255,.018) !important;
+                caret-color:#67e8f9 !important;
+            }
+            .mnm-input::placeholder { color:#6f899d !important; }
+            .mnm-input:focus,
+            .mnm-select:focus {
+                border-color:#22d3ee !important;
+                box-shadow:0 0 0 3px rgba(34,211,238,.10),0 0 14px rgba(34,211,238,.10) !important;
+            }
+            .mnm-select option { background:#081421 !important; color:#eefcff !important; }
+            .mnm-footer {
+                padding:12px 18px 15px !important;
+                border-top:1px solid rgba(125,211,252,.10) !important;
+                background:rgba(3,10,22,.96) !important;
+            }
+            .mnm-btn {
+                min-width:86px !important;
+                padding:9px 16px !important;
+                border-radius:10px !important;
+                border:1px solid rgba(148,163,184,.14) !important;
+                font-weight:800 !important;
+            }
+            .mnm-btn-primary {
+                color:#effeff !important;
+                background:linear-gradient(135deg,#0891b2,#2563eb) !important;
+                box-shadow:0 7px 18px rgba(37,99,235,.18),0 0 10px rgba(34,211,238,.10) !important;
+            }
+            .mnm-btn-secondary {
+                color:#d3e5f1 !important;
+                background:rgba(19,32,50,.92) !important;
+            }
+            .mnm-patient-card,
+            .mnm-pick-item {
+                background:rgba(10,24,40,.78) !important;
+                border-color:rgba(125,211,252,.15) !important;
+                color:#d7edf7 !important;
+            }
+            .mnm-patient-card b,
+            .mnm-pick-item b { color:#ffffff !important; }
+            .mnm-pick-item:hover {
+                background:rgba(8,47,73,.58) !important;
+                border-color:rgba(34,211,238,.55) !important;
+            }
+            .mnm-pick-item .mnm-pick-sub { color:#9eb4c5 !important; }
+
+            /* ---------- AUTO SPEECH / STATUS PANEL ---------- */
+            #medinet-auto-dock-panel {
+                background:linear-gradient(160deg,rgba(5,16,30,.985),rgba(2,9,20,.985)) !important;
+                color:#eafaff !important;
+                border:1px solid rgba(103,232,249,.28) !important;
+                border-radius:18px !important;
+                box-shadow:0 18px 44px rgba(2,6,23,.46),0 0 22px rgba(34,211,238,.08) !important;
+            }
+            #medinet-auto-dock-panel .madp-tail,
+            #medinet-auto-dock-panel .madp-tail::after {
+                border-top-color:#071522 !important;
+            }
+            #medinet-auto-dock-panel .madp-head {
+                background:linear-gradient(90deg,rgba(8,47,73,.70),rgba(5,16,30,.25)) !important;
+                border-bottom:1px solid rgba(125,211,252,.12) !important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                color:#f1fdff !important;
+                font-size:14px !important;
+                font-weight:850 !important;
+            }
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .madp-body * {
+                color:#cfe7f3 !important;
+            }
+            #medinet-auto-dock-panel .madp-running-note {
+                display:block !important;
+                color:#dffcff !important;
+                background:rgba(8,47,73,.42) !important;
+                border:1px dashed rgba(34,211,238,.28) !important;
+            }
+            #medinet-auto-dock-panel.madp-warn {
+                background:linear-gradient(160deg,rgba(35,24,8,.985),rgba(18,12,4,.985)) !important;
+                border-color:rgba(245,158,11,.34) !important;
+            }
+            #medinet-auto-dock-panel.madp-error {
+                background:linear-gradient(160deg,rgba(39,13,18,.985),rgba(21,7,11,.985)) !important;
+                border-color:rgba(248,113,113,.34) !important;
+            }
+
+            /* ---------- RANDOM PLASMA: no orbiting lightning ---------- */
+            #medinet-auto-unified .mau-sparks,
+            #medinet-auto-unified.mau-running .mau-sparks {
+                animation:none !important;
+                rotate:0deg !important;
+            }
+            #medinet-auto-unified .mau-sparks::before,
+            #medinet-auto-unified .mau-sparks::after {
+                display:none !important;
+            }
+            #medinet-auto-unified .mau-sparks i,
+            #medinet-auto-unified.mau-running .mau-sparks i {
+                animation:none !important;
+                transition:opacity .055s linear,filter .055s linear !important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity:1 !important;
+                visibility:visible !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV755Styles() {
+        if (document.getElementById('medinet-auto-v755-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v755-style';
+        style.textContent = `
+            /* =====================================================
+               v7.55 — ACCESSIBLE REACTOR UI + TRUE LIGHTNING
+               Reactor stays cinematic; forms stay high-contrast/readable.
+               ===================================================== */
+
+            /* ---------- HIGH-CONTRAST FORMS FOR OLDER USERS ---------- */
+            .mnm-overlay {
+                background:rgba(15,23,42,.48)!important;
+                backdrop-filter:blur(3px)!important;
+            }
+            .mnm-box {
+                width:min(520px,94vw)!important;
+                background:#ffffff!important;
+                color:#172033!important;
+                border:2px solid rgba(14,116,144,.28)!important;
+                border-radius:18px!important;
+                box-shadow:0 24px 65px rgba(15,23,42,.30),0 0 24px rgba(34,211,238,.08)!important;
+            }
+            .mnm-header {
+                padding:17px 19px!important;
+                background:linear-gradient(135deg,#073b59,#0b5f7d 62%,#0e7490)!important;
+                color:#ffffff!important;
+                border-bottom:0!important;
+                font-size:16px!important;
+                line-height:1.35!important;
+                font-weight:800!important;
+                text-shadow:none!important;
+            }
+            .mnm-header.mnm-warn { color:#fff7d6!important; }
+            .mnm-header.mnm-ok { color:#e9fff1!important; }
+            .mnm-tabs {
+                padding:0 18px!important;
+                background:#f7fbfd!important;
+                border-bottom:1px solid #d7e5ec!important;
+            }
+            .mnm-tab {
+                padding:13px 14px!important;
+                color:#5c6f7f!important;
+                font-size:13.5px!important;
+                font-weight:700!important;
+            }
+            .mnm-tab.mnm-tab-active {
+                color:#075985!important;
+                border-bottom-color:#0891b2!important;
+                text-shadow:none!important;
+            }
+            .mnm-body {
+                padding:20px!important;
+                background:#ffffff!important;
+                color:#1f2937!important;
+                font-size:14px!important;
+                line-height:1.55!important;
+            }
+            .mnm-input-label {
+                display:block!important;
+                color:#263746!important;
+                font-size:14px!important;
+                line-height:1.35!important;
+                font-weight:750!important;
+                margin:0 0 7px!important;
+            }
+            .mnm-input,
+            .mnm-select {
+                min-height:48px!important;
+                padding:11px 13px!important;
+                font-size:16px!important;
+                line-height:1.3!important;
+                color:#111827!important;
+                background:#ffffff!important;
+                border:2px solid #bfd1dc!important;
+                border-radius:11px!important;
+                box-shadow:none!important;
+                caret-color:#0369a1!important;
+            }
+            .mnm-input::placeholder { color:#788995!important; opacity:1!important; }
+            .mnm-input:focus,
+            .mnm-select:focus {
+                outline:none!important;
+                border-color:#0891b2!important;
+                box-shadow:0 0 0 4px rgba(8,145,178,.13)!important;
+            }
+            .mnm-select option { background:#fff!important; color:#111827!important; }
+            .mnm-footer {
+                padding:13px 18px 16px!important;
+                background:#f7fbfd!important;
+                border-top:1px solid #d7e5ec!important;
+                gap:10px!important;
+            }
+            .mnm-btn {
+                min-width:96px!important;
+                min-height:42px!important;
+                padding:10px 17px!important;
+                border-radius:10px!important;
+                font-size:14px!important;
+                font-weight:800!important;
+            }
+            .mnm-btn-primary {
+                color:#fff!important;
+                background:linear-gradient(135deg,#0787a5,#2563eb)!important;
+                border:1px solid rgba(7,89,133,.35)!important;
+                box-shadow:0 5px 14px rgba(37,99,235,.18)!important;
+            }
+            .mnm-btn-secondary {
+                color:#263746!important;
+                background:#eef3f6!important;
+                border:1px solid #c9d7df!important;
+            }
+            .mnm-patient-card,
+            .mnm-pick-item {
+                background:#f8fbfd!important;
+                border:1px solid #d7e5ec!important;
+                color:#243746!important;
+            }
+            .mnm-patient-card b,
+            .mnm-pick-item b { color:#111827!important; }
+            .mnm-pick-item:hover {
+                background:#eaf8fc!important;
+                border-color:#38bdf8!important;
+            }
+            .mnm-pick-item .mnm-pick-sub { color:#5f7180!important; }
+
+            /* ---------- STATUS SPEECH: SAME STYLE, EASY TO READ ---------- */
+            #medinet-auto-dock-panel {
+                background:#ffffff!important;
+                color:#172033!important;
+                border:2px solid #12364a!important;
+                box-shadow:0 16px 38px rgba(15,23,42,.25),0 0 16px rgba(34,211,238,.07)!important;
+            }
+            #medinet-auto-dock-panel .madp-head {
+                background:linear-gradient(135deg,#eaf9fd,#f8fdff)!important;
+                border-bottom:1px solid #d5e8ef!important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                color:#172033!important;
+                font-size:14.5px!important;
+                font-weight:850!important;
+            }
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .madp-body * {
+                color:#263746!important;
+                font-size:13.5px!important;
+                line-height:1.55!important;
+            }
+            #medinet-auto-dock-panel .madp-running-note {
+                color:#0c4a6e!important;
+                background:#e8f8fc!important;
+                border:1px dashed #7dd3fc!important;
+                font-weight:750!important;
+            }
+            #medinet-auto-dock-panel.madp-warn {
+                background:#fffaf0!important;
+                border-color:#b45309!important;
+            }
+            #medinet-auto-dock-panel.madp-error {
+                background:#fff5f5!important;
+                border-color:#b91c1c!important;
+            }
+            #medinet-auto-dock-panel .madp-tail,
+            #medinet-auto-dock-panel .madp-tail::after {
+                border-top-color:#ffffff!important;
+            }
+
+            /* ---------- LIGHTNING, NOT LASER ---------- */
+            #medinet-auto-unified .mau-sparks,
+            #medinet-auto-unified.mau-running .mau-sparks {
+                animation:none!important;
+                rotate:0deg!important;
+                overflow:visible!important;
+            }
+            #medinet-auto-unified .mau-sparks i {
+                position:absolute!important;
+                left:50%!important;
+                top:50%!important;
+                width:34px!important;
+                height:12px!important;
+                margin:-6px 0 0 0!important;
+                border-radius:0!important;
+                background:linear-gradient(90deg,#ffffff 0 10%,#bffcff 11% 34%,#22d3ee 35% 72%,rgba(34,211,238,0) 100%)!important;
+                clip-path:polygon(0 42%,18% 27%,29% 54%,45% 15%,57% 48%,74% 23%,100% 47%,76% 38%,61% 68%,48% 37%,32% 78%,20% 51%,0 62%)!important;
+                box-shadow:none!important;
+                filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #67e8f9) drop-shadow(0 0 9px rgba(34,211,238,.9))!important;
+                transform-origin:0 50%!important;
+                opacity:0!important;
+                pointer-events:none!important;
+            }
+            #medinet-auto-unified .mau-sparks i::before {
+                content:''!important;
+                position:absolute!important;
+                left:48%!important;
+                top:55%!important;
+                width:17px!important;
+                height:7px!important;
+                background:linear-gradient(90deg,#dffcff,#22d3ee 55%,rgba(34,211,238,0))!important;
+                clip-path:polygon(0 40%,28% 22%,42% 58%,63% 20%,100% 48%,65% 42%,45% 78%,28% 51%,0 65%)!important;
+                transform:rotate(31deg)!important;
+                transform-origin:0 50%!important;
+                opacity:.68!important;
+                filter:drop-shadow(0 0 3px #67e8f9)!important;
+            }
+            #medinet-auto-unified .mau-sparks i::after { display:none!important; }
+            #medinet-auto-unified .mau-sparks::before,
+            #medinet-auto-unified .mau-sparks::after { display:none!important; }
+            #medinet-auto-unified.mau-running .mau-sparks {
+                opacity:1!important;
+                visibility:visible!important;
+            }
+            #medinet-auto-unified.mau-running .mau-sparks i {
+                animation:none!important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+
+    function ensureUnifiedAutoV756Styles() {
+        if (document.getElementById('medinet-auto-v756-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v756-style';
+        style.textContent = `
+            /* =====================================================
+               v7.56 — CLINICAL ARC REACTOR
+               One visual language: clinical clarity + reactor accent.
+               ===================================================== */
+
+            /* ---------- REACTOR: SIMPLER, STRONGER, MORE LEGIBLE ---------- */
+            #medinet-auto-unified {
+                width: 74px !important;
+                height: 74px !important;
+                right: 16px !important;
+                bottom: 12px !important;
+                border-radius: 50% !important;
+                overflow: visible !important;
+                filter:
+                    drop-shadow(0 7px 14px rgba(2,6,23,.32))
+                    drop-shadow(0 0 7px rgba(34,211,238,.24)) !important;
+            }
+            #medinet-auto-unified .mau-shell {
+                inset: 1px !important;
+                background:
+                    radial-gradient(circle at 50% 50%, rgba(6,20,34,.98) 0 46%, rgba(4,14,25,.99) 47% 62%, #01050c 63% 100%) !important;
+                border: 1px solid rgba(186,230,253,.22) !important;
+                box-shadow:
+                    inset 0 0 0 2px rgba(255,255,255,.035),
+                    inset 0 0 18px rgba(34,211,238,.09),
+                    0 0 0 2px rgba(2,6,23,.88),
+                    0 0 16px rgba(34,211,238,.15) !important;
+            }
+            #medinet-auto-unified .mau-shell::before {
+                inset: 8px !important;
+                border: 2px solid rgba(125,211,252,.20) !important;
+                box-shadow: inset 0 0 12px rgba(56,189,248,.10), 0 0 8px rgba(34,211,238,.10) !important;
+                opacity: 1 !important;
+            }
+            #medinet-auto-unified .mau-shell::after {
+                content:'' !important;
+                position:absolute !important;
+                inset:13px !important;
+                border-radius:50% !important;
+                border:1px solid rgba(224,242,254,.14) !important;
+                box-shadow: inset 0 0 9px rgba(125,211,252,.08) !important;
+                opacity:1 !important;
+            }
+
+            /* 8 bright reactor sectors; simpler than previous clock-like detail. */
+            #medinet-auto-unified .mau-ring {
+                inset: 4px !important;
+                background: repeating-conic-gradient(
+                    from 0deg,
+                    rgba(236,254,255,.98) 0deg 3deg,
+                    rgba(34,211,238,.92) 3deg 14deg,
+                    rgba(8,47,73,.18) 14deg 33deg,
+                    rgba(2,6,23,0) 33deg 45deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0) !important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0) !important;
+                filter: drop-shadow(0 0 4px rgba(34,211,238,.38)) !important;
+                animation: mau756-idle-outer 6s linear infinite !important;
+            }
+            #medinet-auto-unified .mau-ring2 {
+                inset: 12px !important;
+                background: repeating-conic-gradient(
+                    from 22.5deg,
+                    rgba(186,230,253,.92) 0deg 2deg,
+                    rgba(56,189,248,.60) 2deg 9deg,
+                    rgba(2,6,23,0) 9deg 30deg,
+                    rgba(99,102,241,.32) 30deg 34deg,
+                    rgba(2,6,23,0) 34deg 45deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0) !important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0) !important;
+                filter: drop-shadow(0 0 3px rgba(125,211,252,.30)) !important;
+                animation: mau756-idle-inner 9s linear infinite !important;
+            }
+            @keyframes mau756-idle-outer { from { rotate:0deg; } to { rotate:360deg; } }
+            @keyframes mau756-idle-inner { from { rotate:0deg; } to { rotate:-360deg; } }
+
+            /* Dark readable core, bright energy ring around it. */
+            #medinet-auto-unified .mau-core {
+                inset: 18px !important;
+                z-index: 50 !important;
+                background:
+                    radial-gradient(circle at 50% 33%, rgba(16,67,88,.96) 0 18%, rgba(5,31,47,.98) 43%, rgba(2,14,25,.995) 72%, #020812 100%) !important;
+                border: 2px solid rgba(186,230,253,.62) !important;
+                box-shadow:
+                    inset 0 0 10px rgba(125,211,252,.16),
+                    0 0 0 3px rgba(34,211,238,.10),
+                    0 0 14px rgba(34,211,238,.34) !important;
+                overflow: visible !important;
+            }
+            #medinet-auto-unified .mau-core::before {
+                content:'' !important;
+                position:absolute !important;
+                inset:-6px !important;
+                border-radius:50% !important;
+                border:2px solid rgba(207,250,254,.40) !important;
+                box-shadow: 0 0 9px rgba(103,232,249,.28), inset 0 0 7px rgba(103,232,249,.10) !important;
+                opacity:1 !important;
+            }
+            #medinet-auto-unified .mau-model {
+                position:relative !important;
+                z-index:55 !important;
+                font-size:22px !important;
+                line-height:20px !important;
+                font-weight:950 !important;
+                letter-spacing:-.4px !important;
+                color:#ffffff !important;
+                -webkit-text-stroke:.35px rgba(4,47,70,.90) !important;
+                text-shadow:0 1px 0 rgba(2,6,23,.85),0 0 4px rgba(255,255,255,.45),0 0 8px rgba(34,211,238,.30) !important;
+            }
+            #medinet-auto-unified .mau-auto {
+                position:relative !important;
+                z-index:55 !important;
+                margin-top:2px !important;
+                font-size:7px !important;
+                line-height:7px !important;
+                letter-spacing:1.25px !important;
+                font-weight:900 !important;
+                color:#bff7ff !important;
+                text-shadow:0 1px 0 rgba(2,6,23,.95),0 0 5px rgba(34,211,238,.32) !important;
+            }
+
+            /* Running: obvious acceleration, but text stays still. */
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation:mau756-run-outer .30s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation:mau756-run-inner .46s linear infinite !important;
+            }
+            @keyframes mau756-run-outer { from { rotate:0deg; } to { rotate:360deg; } }
+            @keyframes mau756-run-inner { from { rotate:0deg; } to { rotate:-360deg; } }
+            #medinet-auto-unified .mau-energy {
+                inset:-6px !important;
+                border-radius:50% !important;
+                opacity:.10 !important;
+                background:conic-gradient(
+                    from 0deg,
+                    transparent 0 40deg,
+                    rgba(125,211,252,.12) 40deg 54deg,
+                    transparent 54deg 92deg,
+                    rgba(236,254,255,.38) 92deg 98deg,
+                    rgba(34,211,238,.15) 98deg 122deg,
+                    transparent 122deg 185deg,
+                    rgba(125,211,252,.18) 185deg 205deg,
+                    transparent 205deg 288deg,
+                    rgba(236,254,255,.48) 288deg 294deg,
+                    rgba(34,211,238,.17) 294deg 324deg,
+                    transparent 324deg 360deg
+                ) !important;
+                filter:blur(.3px) drop-shadow(0 0 5px rgba(34,211,238,.22)) !important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity:1 !important;
+                animation:mau756-speedhalo .22s linear infinite !important;
+            }
+            @keyframes mau756-speedhalo { from { rotate:0deg; } to { rotate:360deg; } }
+            #medinet-auto-unified.mau-running .mau-shell {
+                animation:mau756-shell-breathe .62s ease-in-out infinite alternate !important;
+            }
+            @keyframes mau756-shell-breathe {
+                from { box-shadow:inset 0 0 0 2px rgba(255,255,255,.035),inset 0 0 16px rgba(34,211,238,.09),0 0 0 2px rgba(2,6,23,.88),0 0 14px rgba(34,211,238,.16); }
+                to { box-shadow:inset 0 0 0 2px rgba(255,255,255,.05),inset 0 0 22px rgba(34,211,238,.15),0 0 0 2px rgba(2,6,23,.88),0 0 24px rgba(34,211,238,.35); }
+            }
+
+            /* Old spark/laser layer is disabled; SVG lightning owns electrical effects. */
+            #medinet-auto-unified .mau-sparks { display:none !important; }
+            #medinet-auto-unified .mau-lightning-svg {
+                position:absolute !important;
+                left:50% !important;
+                top:50% !important;
+                width:160px !important;
+                height:160px !important;
+                transform:translate(-50%,-50%) !important;
+                overflow:visible !important;
+                pointer-events:none !important;
+                z-index:80 !important;
+                opacity:1 !important;
+            }
+            #medinet-auto-unified .mau-lightning-main,
+            #medinet-auto-unified .mau-lightning-branch {
+                fill:none !important;
+                stroke-linecap:round !important;
+                stroke-linejoin:round !important;
+                vector-effect:non-scaling-stroke !important;
+                opacity:0;
+            }
+            #medinet-auto-unified .mau-lightning-main {
+                stroke:#e8feff !important;
+                stroke-width:2.15 !important;
+                filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 3px #67e8f9) drop-shadow(0 0 7px rgba(34,211,238,.95)) !important;
+            }
+            #medinet-auto-unified .mau-lightning-branch {
+                stroke:#80efff !important;
+                stroke-width:1.15 !important;
+                filter:drop-shadow(0 0 2px #67e8f9) drop-shadow(0 0 5px rgba(34,211,238,.80)) !important;
+            }
+
+            /* ---------- CLINICAL FORMS: BRIGHT, LARGE, EASY ---------- */
+            .mnm-box {
+                width:min(540px,95vw) !important;
+                background:#ffffff !important;
+                border:1px solid #b7ced9 !important;
+                border-top:4px solid #0e7490 !important;
+                border-radius:16px !important;
+                box-shadow:0 22px 60px rgba(15,23,42,.26),0 0 20px rgba(34,211,238,.05) !important;
+            }
+            .mnm-header {
+                padding:16px 20px !important;
+                background:#ffffff !important;
+                color:#163247 !important;
+                border-bottom:1px solid #d8e5eb !important;
+                font-size:16px !important;
+                font-weight:850 !important;
+                text-shadow:none !important;
+            }
+            .mnm-tabs {
+                background:#f7fbfd !important;
+                border-bottom:1px solid #d8e5eb !important;
+            }
+            .mnm-tab {
+                color:#607585 !important;
+                font-size:14px !important;
+                font-weight:750 !important;
+                padding:13px 15px !important;
+            }
+            .mnm-tab.mnm-tab-active {
+                color:#075985 !important;
+                border-bottom:3px solid #0891b2 !important;
+            }
+            .mnm-body {
+                padding:21px !important;
+                color:#1f2937 !important;
+                font-size:14px !important;
+                line-height:1.55 !important;
+            }
+            .mnm-input-label {
+                color:#23394a !important;
+                font-size:14px !important;
+                font-weight:800 !important;
+                margin-bottom:7px !important;
+            }
+            .mnm-input,
+            .mnm-select {
+                min-height:50px !important;
+                font-size:16px !important;
+                font-weight:550 !important;
+                color:#111827 !important;
+                background:#fff !important;
+                border:2px solid #b8cbd5 !important;
+                border-radius:10px !important;
+                padding:11px 13px !important;
+            }
+            .mnm-input::placeholder { color:#718391 !important; opacity:1 !important; }
+            .mnm-input:focus,
+            .mnm-select:focus {
+                border-color:#0891b2 !important;
+                box-shadow:0 0 0 4px rgba(8,145,178,.12) !important;
+            }
+            .mnm-footer {
+                background:#f7fbfd !important;
+                border-top:1px solid #d8e5eb !important;
+                padding:14px 18px 17px !important;
+            }
+            .mnm-btn {
+                min-height:44px !important;
+                min-width:102px !important;
+                font-size:14px !important;
+                font-weight:850 !important;
+                border-radius:10px !important;
+            }
+
+            /* ---------- STATUS BUBBLE: TECHNICAL, NOT CARTOON ---------- */
+            #medinet-auto-dock-panel {
+                right:100px !important;
+                bottom:90px !important;
+                width:min(330px,calc(100vw - 126px)) !important;
+                background:rgba(250,254,255,.985) !important;
+                color:#172033 !important;
+                border:1px solid #8fb9c8 !important;
+                border-left:4px solid #0891b2 !important;
+                border-radius:12px !important;
+                box-shadow:0 14px 34px rgba(15,23,42,.20),0 0 14px rgba(34,211,238,.06) !important;
+                overflow:visible !important;
+            }
+            #medinet-auto-dock-panel .madp-head {
+                padding:10px 12px 7px !important;
+                background:linear-gradient(90deg,#e8f8fc,#f9fdff) !important;
+                border-bottom:1px solid #d5e8ef !important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                color:#173549 !important;
+                font-size:14px !important;
+                font-weight:900 !important;
+            }
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .madp-body * {
+                color:#334155 !important;
+                font-size:13.5px !important;
+                line-height:1.48 !important;
+            }
+            #medinet-auto-dock-panel .madp-running-note {
+                margin-top:6px !important;
+                padding:7px 9px !important;
+                border:0 !important;
+                border-left:3px solid #22d3ee !important;
+                border-radius:7px !important;
+                background:#eefbfe !important;
+                color:#0c4a6e !important;
+                font-weight:800 !important;
+            }
+            #medinet-auto-dock-panel .madp-tail {
+                position:absolute !important;
+                right:18px !important;
+                bottom:-9px !important;
+                width:16px !important;
+                height:16px !important;
+                background:#fafeff !important;
+                border-right:1px solid #8fb9c8 !important;
+                border-bottom:1px solid #8fb9c8 !important;
+                transform:rotate(45deg) !important;
+                clip-path:none !important;
+            }
+            #medinet-auto-dock-panel .madp-tail::after { display:none !important; }
+            #medinet-auto-dock-panel.madp-warn {
+                border-left-color:#d97706 !important;
+                background:#fffdf7 !important;
+            }
+            #medinet-auto-dock-panel.madp-error {
+                border-left-color:#dc2626 !important;
+                background:#fffafa !important;
+            }
+
+            @media (max-width:640px) {
+                #medinet-auto-unified {
+                    width:66px !important;
+                    height:66px !important;
+                    right:10px !important;
+                    bottom:8px !important;
+                }
+                #medinet-auto-unified .mau-core { inset:16px !important; }
+                #medinet-auto-unified .mau-model { font-size:20px !important; }
+                #medinet-auto-dock-panel {
+                    right:80px !important;
+                    bottom:76px !important;
+                    width:min(290px,calc(100vw - 92px)) !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV757Styles() {
+        if (document.getElementById('medinet-auto-v757-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v757-style';
+        style.textContent = `
+            /* =====================================================
+               v7.57 — HIGH-TECH ARC REACTOR / CLEAN HUD
+               Restore strong reactor rings while keeping readability.
+               ===================================================== */
+            #medinet-auto-unified {
+                width:76px !important;
+                height:76px !important;
+                right:14px !important;
+                bottom:10px !important;
+                filter:
+                    drop-shadow(0 7px 16px rgba(2,6,23,.34))
+                    drop-shadow(0 0 8px rgba(34,211,238,.30)) !important;
+            }
+            #medinet-auto-unified .mau-shell {
+                inset:1px !important;
+                background:
+                    radial-gradient(circle at 50% 50%, rgba(3,12,23,.98) 0 42%, rgba(5,22,38,.98) 43% 61%, #01050c 62% 100%) !important;
+                border:1px solid rgba(147,197,253,.28) !important;
+                box-shadow:
+                    inset 0 0 0 2px rgba(255,255,255,.035),
+                    inset 0 0 20px rgba(34,211,238,.12),
+                    0 0 0 2px rgba(2,6,23,.88),
+                    0 0 18px rgba(34,211,238,.20) !important;
+            }
+            /* Strong metallic reactor annulus */
+            #medinet-auto-unified .mau-shell::before {
+                inset:7px !important;
+                border:3px solid rgba(125,211,252,.30) !important;
+                box-shadow:
+                    inset 0 0 10px rgba(224,242,254,.18),
+                    0 0 7px rgba(34,211,238,.22),
+                    0 0 0 1px rgba(2,6,23,.85) !important;
+                opacity:1 !important;
+            }
+            #medinet-auto-unified .mau-shell::after {
+                content:'' !important;
+                position:absolute !important;
+                inset:12px !important;
+                border-radius:50% !important;
+                border:2px solid rgba(207,250,254,.58) !important;
+                box-shadow:
+                    0 0 9px rgba(103,232,249,.36),
+                    inset 0 0 8px rgba(103,232,249,.16) !important;
+                opacity:1 !important;
+            }
+            #medinet-auto-unified .mau-ring {
+                inset:3px !important;
+                background:repeating-conic-gradient(
+                    from -4deg,
+                    rgba(236,254,255,.98) 0deg 3deg,
+                    rgba(34,211,238,.96) 3deg 11deg,
+                    rgba(14,116,144,.48) 11deg 17deg,
+                    transparent 17deg 30deg
+                ) !important;
+                -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0) !important;
+                mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0) !important;
+                filter:drop-shadow(0 0 5px rgba(34,211,238,.46)) !important;
+                animation:mau757-idle-outer 5.2s linear infinite !important;
+            }
+            #medinet-auto-unified .mau-ring2 {
+                inset:11px !important;
+                background:repeating-conic-gradient(
+                    from 10deg,
+                    rgba(224,242,254,.90) 0deg 2deg,
+                    rgba(56,189,248,.78) 2deg 8deg,
+                    transparent 8deg 21deg,
+                    rgba(99,102,241,.40) 21deg 25deg,
+                    transparent 25deg 36deg
+                ) !important;
+                -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0) !important;
+                mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0) !important;
+                filter:drop-shadow(0 0 4px rgba(125,211,252,.30)) !important;
+                animation:mau757-idle-inner 7.8s linear infinite !important;
+            }
+            @keyframes mau757-idle-outer { from{rotate:0deg} to{rotate:360deg} }
+            @keyframes mau757-idle-inner { from{rotate:0deg} to{rotate:-360deg} }
+
+            #medinet-auto-unified .mau-core {
+                inset:19px !important;
+                background:
+                    radial-gradient(circle at 50% 34%, rgba(25,96,125,.92) 0 18%, rgba(4,37,58,.98) 42%, rgba(2,16,29,.995) 70%, #020811 100%) !important;
+                border:1.5px solid rgba(207,250,254,.72) !important;
+                box-shadow:
+                    inset 0 0 11px rgba(125,211,252,.18),
+                    0 0 0 3px rgba(34,211,238,.12),
+                    0 0 15px rgba(34,211,238,.36) !important;
+            }
+            #medinet-auto-unified .mau-model {
+                font-size:23px !important;
+                line-height:20px !important;
+                font-weight:950 !important;
+                color:#fff !important;
+                -webkit-text-stroke:.45px rgba(3,34,53,.98) !important;
+                text-shadow:0 1px 0 #020617,0 0 5px rgba(255,255,255,.65),0 0 10px rgba(34,211,238,.40) !important;
+            }
+            #medinet-auto-unified .mau-auto {
+                margin-top:2px !important;
+                font-size:7.4px !important;
+                line-height:8px !important;
+                letter-spacing:1.3px !important;
+                font-weight:950 !important;
+                color:#d7fbff !important;
+                text-shadow:0 1px 0 #020617,0 0 6px rgba(34,211,238,.35) !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation:mau757-run-outer .27s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation:mau757-run-inner .40s linear infinite !important;
+            }
+            @keyframes mau757-run-outer { from{rotate:0deg} to{rotate:360deg} }
+            @keyframes mau757-run-inner { from{rotate:0deg} to{rotate:-360deg} }
+            #medinet-auto-unified.mau-running .mau-shell::after {
+                animation:mau757-annulus-pulse .52s ease-in-out infinite alternate !important;
+            }
+            @keyframes mau757-annulus-pulse {
+                from{border-color:rgba(207,250,254,.52);box-shadow:0 0 8px rgba(103,232,249,.30),inset 0 0 7px rgba(103,232,249,.12)}
+                to{border-color:rgba(236,254,255,.90);box-shadow:0 0 16px rgba(34,211,238,.58),inset 0 0 12px rgba(103,232,249,.24)}
+            }
+
+            /* Technical status bubble: futuristic but readable, balanced hierarchy. */
+            #medinet-auto-dock-panel {
+                right:102px !important;
+                bottom:88px !important;
+                width:min(320px,calc(100vw - 128px)) !important;
+                background:linear-gradient(145deg,rgba(247,253,255,.985),rgba(235,248,252,.985)) !important;
+                color:#142433 !important;
+                border:1px solid rgba(14,116,144,.42) !important;
+                border-left:4px solid #0891b2 !important;
+                border-radius:14px !important;
+                box-shadow:
+                    0 15px 34px rgba(15,23,42,.18),
+                    0 0 0 1px rgba(255,255,255,.72) inset,
+                    0 0 18px rgba(34,211,238,.08) !important;
+                overflow:visible !important;
+            }
+            #medinet-auto-dock-panel .madp-head {
+                min-height:38px !important;
+                padding:9px 12px 7px !important;
+                background:linear-gradient(90deg,rgba(207,250,254,.70),rgba(248,253,255,.95)) !important;
+                border-bottom:1px solid rgba(14,116,144,.16) !important;
+            }
+            #medinet-auto-dock-panel .madp-pulse {
+                width:8px !important;height:8px !important;
+                background:#06b6d4 !important;
+                box-shadow:0 0 0 3px rgba(6,182,212,.12),0 0 8px rgba(6,182,212,.55) !important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                color:#12394b !important;
+                font-size:14px !important;
+                font-weight:900 !important;
+                letter-spacing:.08px !important;
+            }
+            #medinet-auto-dock-panel .madp-body {
+                padding:9px 12px 11px !important;
+            }
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .madp-body * {
+                color:#294152 !important;
+                font-size:13px !important;
+                line-height:1.42 !important;
+            }
+            #medinet-auto-dock-panel .madp-running-note {
+                margin-top:7px !important;
+                padding:7px 9px !important;
+                background:rgba(224,247,250,.80) !important;
+                border:1px solid rgba(8,145,178,.17) !important;
+                border-left:3px solid #06b6d4 !important;
+                border-radius:8px !important;
+                color:#075985 !important;
+                font-weight:800 !important;
+            }
+            #medinet-auto-dock-panel .madp-tail {
+                right:20px !important;
+                bottom:-8px !important;
+                width:14px !important;height:14px !important;
+                background:#eef9fc !important;
+                border-right:1px solid rgba(14,116,144,.42) !important;
+                border-bottom:1px solid rgba(14,116,144,.42) !important;
+            }
+            #medinet-auto-dock-panel.madp-warn {
+                border-left-color:#d97706 !important;
+                background:linear-gradient(145deg,#fffdf7,#fff9eb) !important;
+            }
+            #medinet-auto-dock-panel.madp-error {
+                border-left-color:#dc2626 !important;
+                background:linear-gradient(145deg,#fffafa,#fff1f2) !important;
+            }
+
+            /* Clinical forms stay bright/readable, with subtle high-tech accents only. */
+            .mnm-modal {
+                border:1px solid rgba(14,116,144,.22) !important;
+                box-shadow:0 20px 55px rgba(15,23,42,.25),0 0 0 1px rgba(255,255,255,.8) inset !important;
+            }
+            .mnm-header {
+                background:linear-gradient(90deg,#f8fdff,#edf9fc) !important;
+                border-bottom:1px solid #cfe4ec !important;
+            }
+            .mnm-header::before {
+                content:'' !important;
+                position:absolute !important;
+                left:0 !important;top:0 !important;bottom:0 !important;width:4px !important;
+                background:linear-gradient(180deg,#22d3ee,#0284c7) !important;
+            }
+            .mnm-title { color:#12394b !important;font-weight:900 !important; }
+            .mnm-tabs { background:#f8fcfe !important; }
+            .mnm-tab.active { color:#0369a1 !important;border-bottom-color:#06b6d4 !important; }
+            .mnm-btn-primary {
+                background:linear-gradient(135deg,#0891b2,#2563eb) !important;
+                box-shadow:0 5px 14px rgba(37,99,235,.16) !important;
+            }
+
+            @media(max-width:640px){
+                #medinet-auto-unified{width:68px !important;height:68px !important;right:9px !important;bottom:7px !important}
+                #medinet-auto-unified .mau-core{inset:17px !important}
+                #medinet-auto-unified .mau-model{font-size:21px !important}
+                #medinet-auto-dock-panel{right:82px !important;bottom:75px !important;width:min(286px,calc(100vw - 94px)) !important}
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV758Styles() {
+        if (document.getElementById('medinet-auto-v758-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v758-style';
+        style.textContent = `
+            /* =====================================================
+               v7.58 — HIGH-TECH CLEANUP + ACCESSIBLE REPORTS
+               ===================================================== */
+            #medinet-auto-unified {
+                width: 78px !important;
+                height: 78px !important;
+            }
+            #medinet-auto-unified .mau-shell {
+                box-shadow:
+                    inset 0 0 0 1px rgba(255,255,255,.05),
+                    inset 0 0 18px rgba(34,211,238,.14),
+                    0 0 0 2px rgba(2,6,23,.86),
+                    0 0 22px rgba(34,211,238,.25) !important;
+            }
+            #medinet-auto-unified .mau-ring {
+                opacity: 1 !important;
+                filter: drop-shadow(0 0 5px rgba(103,232,249,.45)) !important;
+            }
+            #medinet-auto-unified .mau-ring2 {
+                opacity: .96 !important;
+            }
+            #medinet-auto-unified .mau-core {
+                inset: 18px !important;
+                background: radial-gradient(circle at 50% 46%, rgba(250,255,255,.98) 0 16%, rgba(178,244,255,.92) 17% 26%, rgba(46,170,204,.56) 27% 42%, rgba(7,29,48,.96) 57%, rgba(3,12,24,.98) 100%) !important;
+            }
+            #medinet-auto-unified .mau-model {
+                font-size: 22px !important;
+                line-height: 18px !important;
+                text-shadow: 0 0 2px rgba(255,255,255,.98), 0 0 9px rgba(103,232,249,.40), 0 1px 1px rgba(0,0,0,.65) !important;
+            }
+            #medinet-auto-unified .mau-auto {
+                font-size: 7px !important;
+                letter-spacing: 1.25px !important;
+                color: #f2fdff !important;
+                text-shadow: 0 0 4px rgba(255,255,255,.42), 0 1px 1px rgba(0,0,0,.55) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-shell {
+                background: radial-gradient(circle at 50% 50%, rgba(90,17,17,.30) 0 36%, rgba(47,10,10,.85) 37%, rgba(20,7,9,.96) 100%) !important;
+                box-shadow:
+                    inset 0 0 0 1px rgba(255,255,255,.04),
+                    inset 0 0 18px rgba(248,113,113,.12),
+                    0 0 0 2px rgba(44,8,8,.88),
+                    0 0 20px rgba(248,113,113,.18) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-core {
+                background: radial-gradient(circle at 50% 45%, rgba(255,251,244,.98) 0 15%, rgba(255,214,170,.92) 16% 25%, rgba(195,74,74,.60) 26% 42%, rgba(53,17,17,.96) 58%, rgba(22,8,10,.98) 100%) !important;
+            }
+            #medinet-auto-unified .mau-warning {
+                top: 50% !important;
+                left: 50% !important;
+                right: auto !important;
+                transform: translate(-50%, -50%) !important;
+                width: 28px !important;
+                height: 28px !important;
+                border-radius: 999px !important;
+                background: radial-gradient(circle at 35% 35%, rgba(255,254,235,.98), rgba(253,186,116,.96) 62%, rgba(234,88,12,.98) 100%) !important;
+                box-shadow: 0 0 0 2px rgba(255,248,220,.42), 0 0 10px rgba(251,146,60,.56) !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                z-index: 130 !important;
+            }
+            #medinet-auto-unified .mau-warning::before {
+                content: '!' !important;
+                width: 100% !important;
+                height: 100% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                color: #7c2d12 !important;
+                font-size: 19px !important;
+                font-weight: 900 !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-warning {
+                opacity: 1 !important;
+                pointer-events: auto !important;
+            }
+            #medinet-auto-dock-panel {
+                right: 102px !important;
+                bottom: 90px !important;
+                width: min(350px, calc(100vw - 126px)) !important;
+                border-radius: 16px !important;
+            }
+            #medinet-auto-dock-panel .madp-head {
+                padding: 11px 14px 9px !important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                font-size: 15px !important;
+                line-height: 1.28 !important;
+            }
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .madp-body * {
+                font-size: 14px !important;
+                line-height: 1.52 !important;
+            }
+            #medinet-auto-dock-panel .madp-speech-line + .madp-speech-line {
+                margin-top: 6px !important;
+            }
+            #medinet-auto-dock-panel.madp-long {
+                width: min(420px, calc(100vw - 124px)) !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body {
+                max-height: min(58vh, 470px) !important;
+                padding-right: 12px !important;
+            }
+            .madp-report { display: grid !important; gap: 14px !important; }
+            .madp-patient-card {
+                background: linear-gradient(180deg,#fbfeff,#f4fbfd) !important;
+                border: 1px solid #d6e8ef !important;
+                border-radius: 14px !important;
+                padding: 14px !important;
+            }
+            .madp-patient-grid {
+                display: grid !important;
+                grid-template-columns: 110px 1fr !important;
+                gap: 10px 14px !important;
+                align-items: center !important;
+            }
+            .madp-patient-grid > div { display: contents !important; }
+            .madp-patient-grid span {
+                color: #536878 !important;
+                font-weight: 700 !important;
+            }
+            .madp-patient-grid b {
+                color: #0f172a !important;
+                font-size: 15px !important;
+                font-weight: 900 !important;
+            }
+            .madp-summary-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+                gap: 10px !important;
+            }
+            .madp-summary-box {
+                border-radius: 12px !important;
+                padding: 12px 12px 10px !important;
+                background: #f8fcfe !important;
+                border: 1px solid #d8e8ef !important;
+            }
+            .madp-summary-box span { display:block !important; color:#516879 !important; font-weight:700 !important; margin-bottom:4px !important; }
+            .madp-summary-box b { font-size:22px !important; line-height:1 !important; color:#0f172a !important; }
+            .madp-summary-box.is-warn { background:#fff8f1 !important; border-color:#f6c89d !important; }
+            .madp-summary-box.is-warn b { color:#9a3412 !important; }
+            .madp-summary-box.is-ok { background:#f2fbf8 !important; border-color:#bfdfd0 !important; }
+            .madp-summary-box.is-ok b { color:#166534 !important; }
+            .madp-section { display:grid !important; gap:10px !important; }
+            .madp-section-title {
+                font-size: 14px !important;
+                font-weight: 900 !important;
+                color: #14384b !important;
+            }
+            .madp-missing-list { display:flex !important; flex-wrap:wrap !important; gap:8px !important; }
+            .madp-missing-chip {
+                background:#fff8e8 !important; color:#92400e !important; border:1px solid #f6d69d !important;
+                border-radius:999px !important; padding:6px 10px !important; font-size:12.5px !important; font-weight:800 !important;
+            }
+            .mnm-finding-row {
+                gap: 12px !important;
+                padding: 12px 0 !important;
+                border-bottom: 1px solid #e7eff4 !important;
+            }
+            .mnm-badge {
+                min-width: 52px !important;
+                padding: 5px 10px !important;
+                border-radius: 8px !important;
+                font-size: 12px !important;
+                font-weight: 900 !important;
+            }
+            .mnm-finding-label {
+                font-size: 16px !important;
+                font-weight: 900 !important;
+                margin-bottom: 4px !important;
+            }
+            .mnm-finding-number {
+                font-size: 28px !important;
+                line-height: 1.05 !important;
+                margin-bottom: 4px !important;
+            }
+            .mnm-finding-range {
+                display: block !important;
+                font-size: 13px !important;
+                color: #607385 !important;
+                margin-bottom: 6px !important;
+            }
+            .mnm-finding-icd {
+                font-size: 13px !important;
+                padding: 4px 9px !important;
+                border-radius: 7px !important;
+            }
+            .mnm-note, .madp-save-reminder {
+                font-size: 13px !important;
+                line-height: 1.5 !important;
+            }
+            .mnm-result-empty { display:grid !important; gap:8px !important; }
+            .mnm-result-empty-title {
+                font-size: 15px !important;
+                font-weight: 900 !important;
+                color: #92400e !important;
+            }
+            .mnm-result-empty-desc { color:#334155 !important; }
+            @media (max-width: 640px) {
+                #medinet-auto-dock-panel,
+                #medinet-auto-dock-panel.madp-long { width:min(300px, calc(100vw - 92px)) !important; right:80px !important; bottom:76px !important; }
+                .madp-patient-grid { grid-template-columns: 92px 1fr !important; }
+                .mnm-finding-label { font-size: 15px !important; }
+                .mnm-finding-number { font-size: 26px !important; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV759Styles() {
+        if (document.getElementById('medinet-auto-v759-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v759-style';
+        style.textContent = `
+            /* =====================================================
+               v7.59 — WARNING STATE + REPORT LAYOUT FIX
+               Last UI layer: must override all legacy bubble styles.
+               ===================================================== */
+
+            /* ---------- WARNING REACTOR: UNMISSABLE ---------- */
+            #medinet-auto-unified.mau-has-warning {
+                filter:
+                    drop-shadow(0 7px 16px rgba(55,7,10,.34))
+                    drop-shadow(0 0 13px rgba(239,68,68,.50)) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-shell {
+                background:
+                    radial-gradient(circle at 50% 48%, rgba(104,18,24,.44) 0 35%, rgba(61,9,14,.92) 36% 65%, rgba(24,5,8,.99) 100%) !important;
+                border-color: rgba(254,202,202,.38) !important;
+                box-shadow:
+                    inset 0 0 0 1px rgba(255,255,255,.04),
+                    inset 0 0 20px rgba(248,113,113,.22),
+                    0 0 0 2px rgba(46,5,10,.92),
+                    0 0 24px rgba(239,68,68,.34) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-ring {
+                background: repeating-conic-gradient(
+                    from 4deg,
+                    rgba(254,226,226,.98) 0 4deg,
+                    rgba(248,113,113,.96) 4deg 10deg,
+                    rgba(127,29,29,.96) 10deg 17deg,
+                    transparent 17deg 28deg
+                ) !important;
+                filter: drop-shadow(0 0 5px rgba(248,113,113,.72)) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-ring2 {
+                background: repeating-conic-gradient(
+                    from 20deg,
+                    rgba(255,237,213,.96) 0 4deg,
+                    rgba(251,146,60,.92) 4deg 9deg,
+                    rgba(185,28,28,.80) 9deg 15deg,
+                    transparent 15deg 30deg
+                ) !important;
+                filter: drop-shadow(0 0 4px rgba(251,146,60,.52)) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-energy {
+                opacity: .48 !important;
+                background: conic-gradient(
+                    from 0deg,
+                    transparent 0 246deg,
+                    rgba(255,255,255,.95) 248deg 253deg,
+                    #fecaca 254deg 272deg,
+                    #f87171 273deg 305deg,
+                    transparent 306deg 360deg
+                ) !important;
+                filter: drop-shadow(0 0 5px rgba(248,113,113,.70)) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-core {
+                inset: 17px !important;
+                background:
+                    radial-gradient(circle at 48% 38%, rgba(255,248,238,.99) 0 14%, rgba(254,202,202,.96) 15% 27%, rgba(220,38,38,.62) 28% 46%, rgba(69,10,17,.98) 62%, rgba(24,5,8,.99) 100%) !important;
+                border-color: rgba(254,202,202,.58) !important;
+                box-shadow:
+                    inset 0 0 12px rgba(255,255,255,.24),
+                    0 0 19px rgba(248,113,113,.46) !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-model,
+            #medinet-auto-unified.mau-has-warning .mau-auto {
+                opacity: 0 !important;
+                visibility: hidden !important;
+            }
+            #medinet-auto-unified .mau-warning {
+                top:50% !important;
+                left:50% !important;
+                right:auto !important;
+                transform:translate(-50%,-50%) !important;
+                width:44px !important;
+                height:44px !important;
+                border-radius:50% !important;
+                border:2px solid rgba(255,237,213,.86) !important;
+                background:
+                    radial-gradient(circle at 38% 32%, #fff7ed 0 18%, #fdba74 34%, #f97316 62%, #b91c1c 100%) !important;
+                box-shadow:
+                    inset 0 0 8px rgba(255,255,255,.45),
+                    0 0 0 3px rgba(69,10,10,.65),
+                    0 0 18px rgba(249,115,22,.72) !important;
+                opacity:0 !important;
+                pointer-events:none !important;
+                z-index:180 !important;
+            }
+            #medinet-auto-unified .mau-warning::before {
+                content:'!' !important;
+                position:static !important;
+                width:100% !important;
+                height:100% !important;
+                display:flex !important;
+                align-items:center !important;
+                justify-content:center !important;
+                background:none !important;
+                border:0 !important;
+                box-shadow:none !important;
+                color:#7f1d1d !important;
+                font:900 31px/1 'Segoe UI',Arial,sans-serif !important;
+                text-shadow:0 1px 0 rgba(255,255,255,.55) !important;
+                opacity:1 !important;
+                transform:none !important;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-warning {
+                opacity:1 !important;
+                pointer-events:auto !important;
+                animation:mau759-warning-pulse 1.45s ease-in-out infinite alternate !important;
+            }
+            @keyframes mau759-warning-pulse {
+                from { scale:.96; filter:brightness(.96); }
+                to   { scale:1.04; filter:brightness(1.08); }
+            }
+
+            /* ---------- STATUS / REPORT SHELL ---------- */
+            #medinet-auto-dock-panel {
+                width:min(370px,calc(100vw - 126px)) !important;
+                background:#ffffff !important;
+                color:#172033 !important;
+                border:1px solid #9ab9c7 !important;
+                border-left:4px solid #0e7490 !important;
+                border-radius:16px !important;
+                box-shadow:0 16px 40px rgba(15,23,42,.22),0 0 18px rgba(14,116,144,.07) !important;
+            }
+            #medinet-auto-dock-panel.madp-long {
+                width:min(480px,calc(100vw - 130px)) !important;
+            }
+            #medinet-auto-dock-panel .madp-head {
+                background:linear-gradient(90deg,#edf9fc,#ffffff) !important;
+                border-bottom:1px solid #dbe9ef !important;
+                padding:12px 16px 10px !important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                color:#173549 !important;
+                font-size:16px !important;
+                line-height:1.25 !important;
+                font-weight:900 !important;
+            }
+            #medinet-auto-dock-panel .madp-body {
+                color:#263746 !important;
+                padding:14px 16px 16px !important;
+            }
+            #medinet-auto-dock-panel .madp-body * {
+                box-sizing:border-box !important;
+            }
+            #medinet-auto-dock-panel:not(.madp-long) .madp-body {
+                overflow:visible !important;
+                max-height:none !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body {
+                max-height:min(64vh,540px) !important;
+                overflow-y:auto !important;
+                overflow-x:hidden !important;
+                padding-right:22px !important;
+                scrollbar-gutter:stable !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body::-webkit-scrollbar { width:7px !important; }
+            #medinet-auto-dock-panel.madp-long .madp-body::-webkit-scrollbar-track { background:transparent !important; }
+            #medinet-auto-dock-panel.madp-long .madp-body::-webkit-scrollbar-thumb {
+                background:#b8c8d0 !important;
+                border-radius:999px !important;
+            }
+
+            /* ---------- PATIENT INFO: NO INVISIBLE TEXT ---------- */
+            #medinet-auto-dock-panel .madp-report {
+                display:grid !important;
+                gap:15px !important;
+                color:#172033 !important;
+            }
+            #medinet-auto-dock-panel .madp-patient-card {
+                width:100% !important;
+                overflow:visible !important;
+                max-height:none !important;
+                background:#f7fbfd !important;
+                border:1px solid #d3e4eb !important;
+                border-radius:13px !important;
+                padding:14px 15px !important;
+                color:#172033 !important;
+            }
+            #medinet-auto-dock-panel .madp-patient-grid {
+                display:grid !important;
+                grid-template-columns:112px minmax(0,1fr) !important;
+                gap:9px 14px !important;
+                align-items:start !important;
+                color:#172033 !important;
+            }
+            #medinet-auto-dock-panel .madp-patient-grid > div { display:contents !important; }
+            #medinet-auto-dock-panel .madp-patient-grid span {
+                display:block !important;
+                color:#465b6b !important;
+                font-size:13.5px !important;
+                font-weight:750 !important;
+                line-height:1.35 !important;
+            }
+            #medinet-auto-dock-panel .madp-patient-grid b {
+                display:block !important;
+                color:#0f172a !important;
+                font-size:14.5px !important;
+                font-weight:900 !important;
+                line-height:1.35 !important;
+                overflow-wrap:anywhere !important;
+                text-shadow:none !important;
+                opacity:1 !important;
+            }
+
+            /* ---------- SUMMARY CARDS ---------- */
+            #medinet-auto-dock-panel .madp-summary-grid {
+                display:grid !important;
+                grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+                gap:10px !important;
+            }
+            #medinet-auto-dock-panel .madp-summary-box {
+                min-height:76px !important;
+                padding:12px 13px !important;
+                border-radius:12px !important;
+                border:1px solid #d5e4ea !important;
+                background:#f8fbfd !important;
+            }
+            #medinet-auto-dock-panel .madp-summary-box span {
+                display:block !important;
+                color:#42596a !important;
+                font-size:13px !important;
+                font-weight:800 !important;
+                line-height:1.25 !important;
+                margin-bottom:8px !important;
+            }
+            #medinet-auto-dock-panel .madp-summary-box b {
+                display:block !important;
+                color:#0f172a !important;
+                font-size:25px !important;
+                line-height:1 !important;
+                font-weight:900 !important;
+                opacity:1 !important;
+                text-shadow:none !important;
+            }
+            #medinet-auto-dock-panel .madp-summary-box.is-warn {
+                background:#fff7ed !important;
+                border-color:#fdba74 !important;
+            }
+            #medinet-auto-dock-panel .madp-summary-box.is-warn b { color:#c2410c !important; }
+            #medinet-auto-dock-panel .madp-summary-box.is-ok {
+                background:#f0fdf4 !important;
+                border-color:#bbdfc7 !important;
+            }
+            #medinet-auto-dock-panel .madp-summary-box.is-ok b { color:#166534 !important; }
+
+            /* ---------- FINDINGS ---------- */
+            #medinet-auto-dock-panel .madp-findings-list {
+                display:grid !important;
+                gap:0 !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-row {
+                display:grid !important;
+                grid-template-columns:58px minmax(0,1fr) !important;
+                gap:12px !important;
+                padding:14px 0 !important;
+                border-bottom:1px solid #e5edf1 !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-row:last-of-type { border-bottom:0 !important; }
+            #medinet-auto-dock-panel .mnm-badge {
+                align-self:start !important;
+                min-width:58px !important;
+                padding:6px 8px !important;
+                border-radius:8px !important;
+                color:#fff !important;
+                font-size:12px !important;
+                font-weight:900 !important;
+                text-align:center !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-label {
+                color:#172033 !important;
+                font-size:15px !important;
+                font-weight:900 !important;
+                line-height:1.3 !important;
+                margin-bottom:5px !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-number {
+                color:inherit !important;
+                font-size:26px !important;
+                line-height:1 !important;
+                font-weight:900 !important;
+                margin:0 0 5px !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-number-thap { color:#1d4ed8 !important; }
+            #medinet-auto-dock-panel .mnm-finding-number-cao { color:#dc2626 !important; }
+            #medinet-auto-dock-panel .mnm-finding-range {
+                display:block !important;
+                color:#5f7281 !important;
+                font-size:13px !important;
+                line-height:1.35 !important;
+                margin:0 0 8px !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-icd {
+                display:flex !important;
+                flex-wrap:wrap !important;
+                align-items:center !important;
+                gap:5px 7px !important;
+                width:100% !important;
+                margin:0 !important;
+                padding:7px 9px !important;
+                border:1px solid #fed7aa !important;
+                border-radius:8px !important;
+                background:#fff7ed !important;
+                color:#7c2d12 !important;
+                font-size:12.5px !important;
+                line-height:1.4 !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-icd span,
+            #medinet-auto-dock-panel .mnm-finding-icd b {
+                color:#7c2d12 !important;
+                font-size:12.5px !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-icd b { font-weight:900 !important; }
+
+            /* ---------- MISSING / NOTES ---------- */
+            #medinet-auto-dock-panel .madp-section {
+                display:grid !important;
+                gap:9px !important;
+            }
+            #medinet-auto-dock-panel .madp-section-title {
+                color:#173549 !important;
+                font-size:14px !important;
+                font-weight:900 !important;
+            }
+            #medinet-auto-dock-panel .madp-missing-list { display:flex !important; flex-wrap:wrap !important; gap:7px !important; }
+            #medinet-auto-dock-panel .madp-missing-chip {
+                padding:5px 9px !important;
+                border:1px solid #f3c879 !important;
+                border-radius:999px !important;
+                background:#fff8e8 !important;
+                color:#854d0e !important;
+                font-size:12.5px !important;
+                font-weight:800 !important;
+            }
+            #medinet-auto-dock-panel .mnm-note {
+                margin-top:9px !important;
+                color:#6b4a22 !important;
+                background:#fffaf0 !important;
+                border:1px solid #f3dfbd !important;
+                border-radius:8px !important;
+                padding:8px 10px !important;
+                font-size:12.5px !important;
+                line-height:1.45 !important;
+            }
+            #medinet-auto-dock-panel .madp-save-reminder {
+                color:#0c4a6e !important;
+                background:#eef9fc !important;
+                border:1px solid #c8e8f1 !important;
+                border-left:4px solid #0891b2 !important;
+                border-radius:9px !important;
+                padding:10px 11px !important;
+                font-size:13px !important;
+                font-weight:800 !important;
+                line-height:1.45 !important;
+            }
+
+            /* ---------- NO-RESULT MODAL ---------- */
+            .mnm-result-empty { display:grid !important; gap:9px !important; }
+            .mnm-result-empty-title {
+                color:#92400e !important;
+                font-size:15px !important;
+                font-weight:900 !important;
+                line-height:1.4 !important;
+            }
+            .mnm-result-empty-desc {
+                display:grid !important;
+                grid-template-columns:auto 1fr !important;
+                gap:7px !important;
+                color:#334155 !important;
+                font-size:14px !important;
+            }
+            .mnm-result-empty-desc span { color:#64748b !important; font-weight:700 !important; }
+            .mnm-result-empty-desc b { color:#0f172a !important; font-weight:900 !important; overflow-wrap:anywhere !important; }
+            .mnm-result-empty-help { color:#334155 !important; font-size:14px !important; line-height:1.5 !important; }
+
+            /* ---------- CLEAN TAIL ---------- */
+            #medinet-auto-dock-panel .madp-tail {
+                right:22px !important;
+                bottom:-8px !important;
+                width:14px !important;
+                height:14px !important;
+                background:#fff !important;
+                border-right:1px solid #9ab9c7 !important;
+                border-bottom:1px solid #9ab9c7 !important;
+                box-shadow:none !important;
+                z-index:0 !important;
+            }
+
+            /* ---------- LIGHTNING: MAIN + BRANCHES CLEARER ---------- */
+            #medinet-auto-unified .mau-lightning-main {
+                stroke:#f4ffff !important;
+                stroke-width:2.6 !important;
+                filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 4px #67e8f9) drop-shadow(0 0 9px rgba(34,211,238,.98)) !important;
+            }
+            #medinet-auto-unified .mau-lightning-branch {
+                stroke:#9bf5ff !important;
+                stroke-width:1.55 !important;
+                filter:drop-shadow(0 0 2px #67e8f9) drop-shadow(0 0 6px rgba(34,211,238,.82)) !important;
+            }
+
+            @media(max-width:640px) {
+                #medinet-auto-unified { width:70px !important;height:70px !important; }
+                #medinet-auto-unified .mau-warning { width:40px !important;height:40px !important; }
+                #medinet-auto-unified .mau-warning::before { font-size:28px !important; }
+                #medinet-auto-dock-panel,
+                #medinet-auto-dock-panel.madp-long {
+                    width:min(310px,calc(100vw - 92px)) !important;
+                    right:80px !important;
+                    bottom:76px !important;
+                }
+                #medinet-auto-dock-panel .madp-patient-grid { grid-template-columns:92px minmax(0,1fr) !important; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV761Styles() {
+        if (document.getElementById('medinet-auto-v761-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v761-style';
+        style.textContent = `
+            /* =====================================================
+               v7.61 — CLINICAL ALERT INSPECTOR
+               Wider, calmer, fewer colors, clearer hierarchy.
+               ===================================================== */
+
+            #medinet-auto-dock-panel.madp-long {
+                width:min(500px,calc(100vw - 132px)) !important;
+                max-width:500px !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body {
+                max-height:min(62vh,520px) !important;
+                padding:14px 16px 15px !important;
+            }
+            #medinet-auto-dock-panel.madp-warn {
+                background:#ffffff !important;
+                border:1px solid #d8e5eb !important;
+                border-left:4px solid #d97706 !important;
+            }
+            #medinet-auto-dock-panel.madp-warn .madp-head {
+                background:linear-gradient(90deg,#fff9ef 0%,#ffffff 78%) !important;
+                border-bottom:1px solid #ece3d8 !important;
+            }
+
+            .madp-inspector {
+                display:grid !important;
+                gap:13px !important;
+                color:#172033 !important;
+            }
+            .madp-inspector-patient {
+                padding-bottom:11px !important;
+                border-bottom:1px solid #e5edf1 !important;
+            }
+            .madp-inspector-name {
+                color:#0f172a !important;
+                font-size:17px !important;
+                line-height:1.25 !important;
+                font-weight:900 !important;
+                letter-spacing:.05px !important;
+                overflow-wrap:anywhere !important;
+            }
+            .madp-inspector-meta {
+                margin-top:5px !important;
+                color:#607385 !important;
+                font-size:12.8px !important;
+                line-height:1.45 !important;
+                font-weight:650 !important;
+                overflow-wrap:anywhere !important;
+            }
+            .madp-inspector-summary {
+                display:flex !important;
+                align-items:center !important;
+                flex-wrap:wrap !important;
+                gap:7px 10px !important;
+                min-height:34px !important;
+                padding:8px 11px !important;
+                border-radius:10px !important;
+                background:#f7fafc !important;
+                border:1px solid #e0e9ee !important;
+                color:#42596a !important;
+                font-size:13px !important;
+                font-weight:750 !important;
+            }
+            .madp-inspector-summary span {
+                color:#42596a !important;
+                font-size:13px !important;
+                font-weight:750 !important;
+                white-space:nowrap !important;
+            }
+            .madp-inspector-summary b {
+                color:#9a3412 !important;
+                font-size:15px !important;
+                font-weight:900 !important;
+            }
+            .madp-inspector-summary i {
+                width:4px !important;
+                height:4px !important;
+                border-radius:50% !important;
+                background:#94a3b8 !important;
+                flex:none !important;
+            }
+
+            .madp-inspector-section {
+                display:grid !important;
+                gap:8px !important;
+            }
+            .madp-inspector-section-title {
+                color:#173549 !important;
+                font-size:13.5px !important;
+                line-height:1.3 !important;
+                font-weight:900 !important;
+                letter-spacing:.08px !important;
+            }
+            .madp-inspector-missing {
+                padding:10px 11px !important;
+                border-radius:10px !important;
+                background:#fffaf2 !important;
+                border:1px solid #f0dfc7 !important;
+            }
+
+            /* Compact horizontal finding cards */
+            #medinet-auto-dock-panel .madp-findings-list {
+                display:grid !important;
+                gap:8px !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-row {
+                display:grid !important;
+                grid-template-columns:58px minmax(0,1fr) !important;
+                gap:11px !important;
+                padding:11px 12px !important;
+                border:1px solid #e3ebef !important;
+                border-radius:11px !important;
+                background:#fbfdfe !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-row:last-of-type {
+                border-bottom:1px solid #e3ebef !important;
+            }
+            #medinet-auto-dock-panel .mnm-badge {
+                align-self:start !important;
+                min-width:58px !important;
+                margin-top:1px !important;
+                padding:5px 7px !important;
+                border-radius:8px !important;
+                font-size:11.5px !important;
+                line-height:1.1 !important;
+                font-weight:900 !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-main {
+                min-width:0 !important;
+                display:grid !important;
+                grid-template-columns:minmax(0,1fr) auto !important;
+                grid-template-areas:
+                    "label value"
+                    "range range"
+                    "icd icd" !important;
+                column-gap:12px !important;
+                row-gap:4px !important;
+                align-items:baseline !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-label {
+                grid-area:label !important;
+                min-width:0 !important;
+                color:#172033 !important;
+                font-size:14.5px !important;
+                line-height:1.3 !important;
+                font-weight:900 !important;
+                margin:0 !important;
+                overflow-wrap:anywhere !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-number {
+                grid-area:value !important;
+                margin:0 !important;
+                font-size:24px !important;
+                line-height:1 !important;
+                font-weight:900 !important;
+                white-space:nowrap !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-range {
+                grid-area:range !important;
+                display:block !important;
+                margin:0 !important;
+                color:#657887 !important;
+                font-size:12.5px !important;
+                line-height:1.35 !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-icd {
+                grid-area:icd !important;
+                width:auto !important;
+                max-width:100% !important;
+                margin:3px 0 0 !important;
+                padding:5px 8px !important;
+                border:0 !important;
+                border-left:3px solid #f59e0b !important;
+                border-radius:5px !important;
+                background:#fff9ef !important;
+                color:#7c4a19 !important;
+                font-size:12px !important;
+                line-height:1.38 !important;
+                overflow-wrap:anywhere !important;
+            }
+
+            #medinet-auto-dock-panel .madp-missing-list {
+                gap:6px !important;
+            }
+            #medinet-auto-dock-panel .madp-missing-chip {
+                padding:4px 8px !important;
+                font-size:12px !important;
+                background:#fff !important;
+                border-color:#e9cfaa !important;
+            }
+            #medinet-auto-dock-panel .mnm-note {
+                background:transparent !important;
+                border:0 !important;
+                padding:0 !important;
+                color:#64748b !important;
+                font-size:12px !important;
+            }
+            #medinet-auto-dock-panel .madp-save-reminder {
+                margin-top:1px !important;
+                background:#eef9fc !important;
+                border:1px solid #cae8ef !important;
+                border-left:3px solid #0891b2 !important;
+                border-radius:8px !important;
+                padding:9px 10px !important;
+                color:#0c4a6e !important;
+                font-size:12.8px !important;
+                line-height:1.45 !important;
+                font-weight:800 !important;
+            }
+
+            /* Tail is only an anchor cue, not a second focal point. */
+            #medinet-auto-dock-panel .madp-tail {
+                width:11px !important;
+                height:11px !important;
+                right:24px !important;
+                bottom:-6px !important;
+                opacity:.85 !important;
+            }
+
+            @media(max-width:720px) {
+                #medinet-auto-dock-panel.madp-long {
+                    width:min(360px,calc(100vw - 90px)) !important;
+                }
+                #medinet-auto-dock-panel .mnm-finding-main {
+                    grid-template-columns:minmax(0,1fr) !important;
+                    grid-template-areas:
+                        "label"
+                        "value"
+                        "range"
+                        "icd" !important;
+                    row-gap:4px !important;
+                }
+                #medinet-auto-dock-panel .mnm-finding-number {
+                    font-size:23px !important;
+                }
+                .madp-inspector-summary span {
+                    white-space:normal !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV762Styles() {
+        if (document.getElementById('medinet-auto-v762-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v762-style';
+        style.textContent = `
+            /* =====================================================
+               v7.62 — CONTRAST FIX
+               ===================================================== */
+            #medinet-auto-dock-panel.madp-long {
+                width:min(510px,calc(100vw - 130px)) !important;
+            }
+            .madp-inspector {
+                color:#172033 !important;
+            }
+            .madp-inspector-summary {
+                display:grid !important;
+                grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+                gap:10px !important;
+                padding:0 !important;
+                background:transparent !important;
+                border:0 !important;
+                min-height:0 !important;
+            }
+            .madp-inspector-pill {
+                display:grid !important;
+                gap:4px !important;
+                align-content:center !important;
+                min-height:64px !important;
+                padding:10px 12px !important;
+                border-radius:12px !important;
+                border:1px solid #d8e4ea !important;
+                background:#f8fbfc !important;
+                box-shadow: inset 0 1px 0 rgba(255,255,255,.8) !important;
+            }
+            .madp-inspector-pill small {
+                display:block !important;
+                color:#526374 !important;
+                font-size:12.5px !important;
+                line-height:1.25 !important;
+                font-weight:800 !important;
+            }
+            .madp-inspector-pill b {
+                display:block !important;
+                color:#0f172a !important;
+                font-size:31px !important;
+                line-height:1 !important;
+                font-weight:900 !important;
+            }
+            .madp-inspector-pill.is-warn {
+                background:#fff7ef !important;
+                border-color:#f2cb9a !important;
+            }
+            .madp-inspector-pill.is-warn b { color:#b45309 !important; }
+            .madp-inspector-pill.is-missing {
+                background:#f3f8f7 !important;
+                border-color:#c8ddd7 !important;
+            }
+            .madp-inspector-pill.is-missing b { color:#166534 !important; }
+            .madp-inspector-section-title {
+                color:#122b3d !important;
+                font-size:14px !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-row {
+                background:#ffffff !important;
+                border:1px solid #dbe7ed !important;
+                box-shadow: 0 1px 0 rgba(15,23,42,.03) !important;
+            }
+            #medinet-auto-dock-panel .mnm-badge,
+            #medinet-auto-dock-panel .mnm-badge-thap,
+            #medinet-auto-dock-panel .mnm-badge-cao {
+                color:#ffffff !important;
+            }
+            #medinet-auto-dock-panel .mnm-badge-thap {
+                background:#3558e6 !important;
+                box-shadow: inset 0 -1px 0 rgba(0,0,0,.12) !important;
+            }
+            #medinet-auto-dock-panel .mnm-badge-cao {
+                background:#d13a30 !important;
+                box-shadow: inset 0 -1px 0 rgba(0,0,0,.12) !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-label {
+                color:#172033 !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-number-thap { color:#3558e6 !important; }
+            #medinet-auto-dock-panel .mnm-finding-number-cao { color:#d13a30 !important; }
+            #medinet-auto-dock-panel .mnm-finding-range {
+                color:#5a6f7e !important;
+                font-weight:700 !important;
+            }
+            #medinet-auto-dock-panel .mnm-finding-icd {
+                background:#fff7ec !important;
+                border-left-color:#f59e0b !important;
+                color:#7c4a19 !important;
+            }
+            #medinet-auto-dock-panel .madp-inspector-name {
+                color:#0f172a !important;
+            }
+            #medinet-auto-dock-panel .madp-inspector-meta {
+                color:#4d6272 !important;
+            }
+            @media(max-width:720px){
+                .madp-inspector-summary {
+                    grid-template-columns:1fr !important;
+                }
+                .madp-inspector-pill b {
+                    font-size:28px !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV763Styles() {
+        if (document.getElementById('medinet-auto-v763-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v763-style';
+        style.textContent = `
+            /* =====================================================
+               v7.63 — DETERMINISTIC CONTRAST / NO MORE INVISIBLE TEXT
+               ===================================================== */
+            #medinet-auto-dock-panel.madp-long {
+                background:#ffffff !important;
+                color:#111827 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body {
+                background:#ffffff !important;
+                color:#111827 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-inspector-name {
+                color:#0f172a !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-inspector-meta {
+                color:#475569 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-inspector-section-title {
+                color:#0f2f43 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-inspector-pill small {
+                color:#334155 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-inspector-pill.is-warn b {
+                color:#b45309 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-inspector-pill.is-missing b {
+                color:#166534 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-finding-row {
+                background:#ffffff !important;
+                color:#111827 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-finding-label {
+                color:#111827 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-finding-range {
+                color:#526575 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-finding-icd {
+                color:#7c3f10 !important;
+                background:#fff6e8 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-badge-thap {
+                background:#3157d8 !important;
+                color:#ffffff !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-badge-cao {
+                background:#cf3c32 !important;
+                color:#ffffff !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-finding-number-thap {
+                color:#3157d8 !important;
+            }
+            #medinet-auto-dock-panel.madp-long .mnm-finding-number-cao {
+                color:#cf3c32 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function promoteFinalAutoStyles() {
+        [
+            'medinet-auto-v759-style',
+            'medinet-auto-v761-style',
+            'medinet-auto-v762-style',
+            'medinet-auto-v763-style',
+            'medinet-auto-v764-style',
+            'medinet-auto-v765-style',
+            'medinet-auto-v767-style',
+            'medinet-auto-v768-style',
+            'medinet-auto-v770-style'
+        ].forEach(id => {
+            const node = document.getElementById(id);
+            if (node && node.parentNode) {
+                node.parentNode.appendChild(node);
+            }
+        });
+    }
+
+    function applyInspectorContrastHardening(panel) {
+        if (!panel || !panel.querySelector('.madp-inspector')) return;
+
+        const force = (selector, props) => {
+            panel.querySelectorAll(selector).forEach(el => {
+                Object.entries(props).forEach(([name, value]) => {
+                    el.style.setProperty(name, value, 'important');
+                });
+            });
+        };
+
+        force('.madp-body', {
+            'background': '#ffffff',
+            'color': '#111827'
+        });
+        force('.madp-inspector-name', {
+            'color': '#0f172a'
+        });
+        force('.madp-inspector-meta', {
+            'color': '#475569'
+        });
+        force('.madp-inspector-section-title', {
+            'color': '#0f2f43'
+        });
+        force('.madp-inspector-pill small', {
+            'color': '#334155'
+        });
+        force('.madp-inspector-pill.is-warn b', {
+            'color': '#b45309'
+        });
+        force('.madp-inspector-pill.is-missing b', {
+            'color': '#166534'
+        });
+        force('.mnm-finding-row', {
+            'background': '#ffffff',
+            'color': '#111827'
+        });
+        force('.mnm-finding-label', {
+            'color': '#111827'
+        });
+        force('.mnm-finding-range', {
+            'color': '#526575'
+        });
+        force('.mnm-finding-icd', {
+            'color': '#7c3f10',
+            'background': '#fff6e8'
+        });
+        force('.mnm-badge-thap', {
+            'background': '#3157d8',
+            'color': '#ffffff'
+        });
+        force('.mnm-badge-cao', {
+            'background': '#cf3c32',
+            'color': '#ffffff'
+        });
+        force('.mnm-finding-number-thap', {
+            'color': '#3157d8'
+        });
+        force('.mnm-finding-number-cao', {
+            'color': '#cf3c32'
+        });
+    }
+
+    function ensureUnifiedAutoV764Styles() {
+        if (document.getElementById('medinet-auto-v764-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v764-style';
+        style.textContent = `
+            /* v7.64 — isolated report namespace: xai-* only */
+            #medinet-auto-dock-panel.madp-long { width:min(520px,calc(100vw - 128px)) !important; }
+            #medinet-auto-dock-panel.madp-long .madp-body { background:#fff !important; color:#111827 !important; padding:14px 16px 16px !important; }
+            #medinet-auto-dock-panel .xai-report,
+            #medinet-auto-dock-panel .xai-report * { box-sizing:border-box !important; }
+            #medinet-auto-dock-panel .xai-report { display:grid !important; gap:14px !important; color:#111827 !important; background:#fff !important; }
+            #medinet-auto-dock-panel .xai-patient { padding:0 0 12px !important; border-bottom:1px solid #dfe8ed !important; background:#fff !important; }
+            #medinet-auto-dock-panel .xai-patient-name { color:#0f172a !important; font:900 17px/1.28 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-patient-meta { margin-top:5px !important; color:#475569 !important; font:700 12.8px/1.45 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-summary { display:grid !important; grid-template-columns:1fr 1fr !important; gap:10px !important; }
+            #medinet-auto-dock-panel .xai-stat { min-height:66px !important; padding:10px 12px !important; border-radius:12px !important; border:1px solid !important; display:grid !important; gap:5px !important; align-content:center !important; }
+            #medinet-auto-dock-panel .xai-stat span { font:800 12.5px/1.2 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-stat b { font:900 30px/1 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-stat-warn { background:#fff4e8 !important; border-color:#efc38e !important; }
+            #medinet-auto-dock-panel .xai-stat-warn span { color:#7c3d08 !important; }
+            #medinet-auto-dock-panel .xai-stat-warn b { color:#b45309 !important; }
+            #medinet-auto-dock-panel .xai-stat-missing { background:#eef8f3 !important; border-color:#bddccf !important; }
+            #medinet-auto-dock-panel .xai-stat-missing span { color:#22543d !important; }
+            #medinet-auto-dock-panel .xai-stat-missing b { color:#166534 !important; }
+            #medinet-auto-dock-panel .xai-section { display:grid !important; gap:9px !important; }
+            #medinet-auto-dock-panel .xai-section-title { color:#173549 !important; font:900 14px/1.3 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-missing { padding:10px 11px !important; border:1px solid #ead7ba !important; background:#fffaf2 !important; border-radius:10px !important; }
+            #medinet-auto-dock-panel .xai-chip-list { display:flex !important; flex-wrap:wrap !important; gap:6px !important; }
+            #medinet-auto-dock-panel .xai-chip { color:#7c3d08 !important; background:#fff !important; border:1px solid #e8cda7 !important; border-radius:999px !important; padding:5px 9px !important; font:800 12px/1.2 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-findings { display:grid !important; gap:8px !important; }
+            #medinet-auto-dock-panel .xai-finding { display:grid !important; grid-template-columns:60px minmax(0,1fr) !important; gap:12px !important; padding:12px !important; border:1px solid #dce7ec !important; background:#fff !important; border-radius:12px !important; }
+            #medinet-auto-dock-panel .xai-badge { align-self:start !important; border-radius:8px !important; padding:6px 7px !important; color:#fff !important; text-align:center !important; font:900 11.5px/1.1 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-low .xai-badge { background:#3157d8 !important; }
+            #medinet-auto-dock-panel .xai-high .xai-badge { background:#cf3c32 !important; }
+            #medinet-auto-dock-panel .xai-finding-main { min-width:0 !important; display:grid !important; grid-template-columns:minmax(0,1fr) auto !important; grid-template-areas:'name value' 'ref ref' 'note note' !important; column-gap:12px !important; row-gap:4px !important; align-items:baseline !important; }
+            #medinet-auto-dock-panel .xai-finding-name { grid-area:name !important; color:#111827 !important; font:900 14.5px/1.3 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-finding-value { grid-area:value !important; font:900 24px/1 'Segoe UI',Arial,sans-serif !important; white-space:nowrap !important; }
+            #medinet-auto-dock-panel .xai-low .xai-finding-value { color:#3157d8 !important; }
+            #medinet-auto-dock-panel .xai-high .xai-finding-value { color:#cf3c32 !important; }
+            #medinet-auto-dock-panel .xai-finding-ref { grid-area:ref !important; color:#526575 !important; font:700 12.5px/1.35 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-finding-note { grid-area:note !important; margin-top:3px !important; padding:6px 8px !important; border-left:3px solid #f59e0b !important; border-radius:5px !important; background:#fff6e8 !important; color:#7c3f10 !important; font:600 12px/1.4 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-finding-note span { color:#8a4a19 !important; margin-right:6px !important; }
+            #medinet-auto-dock-panel .xai-finding-note b { color:#7c2d12 !important; margin-right:7px !important; }
+            #medinet-auto-dock-panel .xai-finding-note em { color:#7c3f10 !important; font-style:normal !important; }
+            #medinet-auto-dock-panel .xai-ok { color:#166534 !important; background:#effaf4 !important; border:1px solid #c7e5d5 !important; border-radius:9px !important; padding:9px 10px !important; font:800 13px/1.4 'Segoe UI',Arial,sans-serif !important; }
+            #medinet-auto-dock-panel .xai-save { color:#0c4a6e !important; background:#eef9fc !important; border:1px solid #c9e7ef !important; border-left:3px solid #0891b2 !important; border-radius:8px !important; padding:9px 10px !important; font:800 12.8px/1.45 'Segoe UI',Arial,sans-serif !important; }
+            @media(max-width:720px){
+                #medinet-auto-dock-panel.madp-long { width:min(370px,calc(100vw - 90px)) !important; }
+                #medinet-auto-dock-panel .xai-summary { grid-template-columns:1fr !important; }
+                #medinet-auto-dock-panel .xai-finding-main { grid-template-columns:1fr !important; grid-template-areas:'name' 'value' 'ref' 'note' !important; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV765Styles() {
+        if (document.getElementById('medinet-auto-v765-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v765-style';
+        style.textContent = `
+            /* =====================================================
+               v7.65 — WIDE REPORT PANEL
+               Long CLS reports use the viewport instead of squeezing
+               into the gap left of the AUTO reactor.
+               ===================================================== */
+            #medinet-auto-dock-panel.madp-long {
+                right: 18px !important;
+                bottom: 98px !important;
+                width: min(600px, calc(100vw - 36px)) !important;
+                max-width: none !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-body {
+                max-height: min(64vh, 560px) !important;
+                padding: 15px 17px 17px !important;
+            }
+            #medinet-auto-dock-panel.madp-long .madp-tail {
+                right: 34px !important;
+                bottom: -6px !important;
+            }
+            #medinet-auto-dock-panel .xai-report {
+                gap: 12px !important;
+            }
+            #medinet-auto-dock-panel .xai-patient {
+                padding-bottom: 10px !important;
+            }
+            #medinet-auto-dock-panel .xai-summary {
+                grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+            }
+            #medinet-auto-dock-panel .xai-stat {
+                min-height: 58px !important;
+                padding: 9px 12px !important;
+            }
+            #medinet-auto-dock-panel .xai-stat b {
+                font-size: 27px !important;
+            }
+            #medinet-auto-dock-panel .xai-finding {
+                grid-template-columns: 62px minmax(0,1fr) !important;
+                padding: 11px 12px !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-main {
+                grid-template-columns: minmax(145px,1fr) auto !important;
+                grid-template-areas:
+                    'name value'
+                    'ref value'
+                    'note note' !important;
+                align-items: center !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-value {
+                align-self:center !important;
+                font-size:25px !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note {
+                margin-top:4px !important;
+            }
+            @media (max-width: 640px) {
+                #medinet-auto-dock-panel.madp-long {
+                    left: 12px !important;
+                    right: 12px !important;
+                    bottom: 92px !important;
+                    width: auto !important;
+                    max-width: none !important;
+                }
+                #medinet-auto-dock-panel.madp-long .madp-body {
+                    max-height: min(62vh, 520px) !important;
+                    padding: 13px 14px 15px !important;
+                }
+                #medinet-auto-dock-panel.madp-long .madp-tail {
+                    right: 28px !important;
+                }
+                #medinet-auto-dock-panel .xai-summary {
+                    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+                }
+                #medinet-auto-dock-panel .xai-finding-main {
+                    grid-template-columns: minmax(0,1fr) auto !important;
+                    grid-template-areas:
+                        'name value'
+                        'ref ref'
+                        'note note' !important;
+                }
+                #medinet-auto-dock-panel .xai-finding-note {
+                    font-size: 11.8px !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function hardenXaiReport(panel) {
+        if (!panel || !panel.querySelector('.xai-report')) return;
+        const set = (sel, prop, val) => panel.querySelectorAll(sel).forEach(el => el.style.setProperty(prop,val,'important'));
+        set('.xai-report','color','#111827');
+        set('.xai-patient-name','color','#0f172a');
+        set('.xai-patient-meta','color','#475569');
+        set('.xai-section-title','color','#173549');
+        set('.xai-stat-warn span','color','#7c3d08');
+        set('.xai-stat-warn b','color','#b45309');
+        set('.xai-stat-missing span','color','#22543d');
+        set('.xai-stat-missing b','color','#166534');
+        set('.xai-low .xai-badge','background','#3157d8');
+        set('.xai-high .xai-badge','background','#cf3c32');
+        set('.xai-badge','color','#ffffff');
+        set('.xai-finding-name','color','#111827');
+        set('.xai-low .xai-finding-value','color','#3157d8');
+        set('.xai-high .xai-finding-value','color','#cf3c32');
+        set('.xai-finding-ref','color','#526575');
+        set('.xai-finding-note','color','#7c3f10');
+    }
+
+
+    function measureNaturalInlineWidth(el) {
+        if (!el || !el.isConnected) return 0;
+        const cs = getComputedStyle(el);
+        const probe = document.createElement('span');
+        probe.textContent = el.textContent || '';
+        Object.assign(probe.style, {
+            position: 'fixed',
+            left: '-10000px',
+            top: '-10000px',
+            display: 'inline-block',
+            width: 'max-content',
+            maxWidth: 'none',
+            minWidth: '0',
+            whiteSpace: 'nowrap',
+            visibility: 'hidden',
+            pointerEvents: 'none',
+            fontFamily: cs.fontFamily,
+            fontSize: cs.fontSize,
+            fontWeight: cs.fontWeight,
+            fontStyle: cs.fontStyle,
+            letterSpacing: cs.letterSpacing,
+            lineHeight: cs.lineHeight
+        });
+        document.body.appendChild(probe);
+        const width = Math.ceil(probe.getBoundingClientRect().width);
+        probe.remove();
+        return width;
+    }
+
+    function getAutoDockWidthCandidates(panel) {
+        if (!panel) return [];
+        const selectors = [
+            '.madp-title',
+            '.xai-patient-name',
+            '.xai-patient-meta',
+            '.xai-stat span',
+            '.xai-section-title',
+            '.xai-finding-name',
+            '.xai-finding-ref',
+            '.xai-icd-label',
+            '.xai-icd-value',
+            '.xai-chip',
+            '.xai-save'
+        ];
+        const seen = new Set();
+        const result = [];
+        selectors.forEach(selector => {
+            panel.querySelectorAll(selector).forEach(el => {
+                if (!el || seen.has(el)) return;
+                seen.add(el);
+                result.push(el);
+            });
+        });
+        return result;
+    }
+
+    function setAutoDockCandidateWrapping(panel, nowrap) {
+        getAutoDockWidthCandidates(panel).forEach(el => {
+            el.style.setProperty('white-space', nowrap ? 'nowrap' : 'normal', 'important');
+            el.style.setProperty('word-break', 'normal', 'important');
+            el.style.setProperty('overflow-wrap', nowrap ? 'normal' : 'break-word', 'important');
+            el.style.setProperty('max-width', '100%', 'important');
+            el.style.setProperty('min-width', '0', 'important');
+            el.querySelectorAll('b, em, span').forEach(child => {
+                if (child.classList.contains('xai-icd-label')) return;
+                child.style.setProperty('white-space', nowrap ? 'nowrap' : 'normal', 'important');
+                child.style.setProperty('word-break', 'normal', 'important');
+                child.style.setProperty('overflow-wrap', nowrap ? 'normal' : 'break-word', 'important');
+            });
+        });
+    }
+
+    function measureLongestAutoDockLine(panel) {
+        let longest = 0;
+        let longestEl = null;
+        getAutoDockWidthCandidates(panel).forEach(el => {
+            const natural = measureNaturalInlineWidth(el);
+            if (natural > longest) {
+                longest = natural;
+                longestEl = el;
+            }
+        });
+        return { width: longest, element: longestEl };
+    }
+
+    function autoDockContentFitsAtWidth(panel, width) {
+        if (!panel || !panel.isConnected) return false;
+        panel.style.setProperty('width', `${Math.round(width)}px`, 'important');
+        panel.style.setProperty('max-width', `${Math.round(width)}px`, 'important');
+        setAutoDockCandidateWrapping(panel, true);
+        void panel.offsetWidth;
+
+        const tolerance = 2;
+        const candidatesFit = getAutoDockWidthCandidates(panel).every(el => {
+            const natural = measureNaturalInlineWidth(el);
+            const available = Math.floor(el.getBoundingClientRect().width);
+            return !natural || natural <= available + tolerance;
+        });
+
+        if (!candidatesFit) return false;
+
+        const boxes = panel.querySelectorAll(
+            '.madp-body,.xai-report,.xai-patient,.xai-summary,.xai-section,.xai-findings,.xai-finding,.xai-finding-main,.xai-finding-note'
+        );
+        return Array.from(boxes).every(el => el.scrollWidth <= el.clientWidth + tolerance);
+    }
+
+    function measureContentDrivenPanelWidth(panel, viewportWidth) {
+        if (!panel) return 0;
+
+        const safeMax = Math.max(300, Math.floor(viewportWidth - 24));
+        const safeMin = Math.min(safeMax, 360);
+
+        // Measure every meaningful line first. This is intentionally global:
+        // the longest line anywhere in the bubble is allowed to drive width.
+        setAutoDockCandidateWrapping(panel, true);
+        void panel.offsetWidth;
+        const longest = measureLongestAutoDockLine(panel);
+        panel.dataset.longestNaturalLine = String(Math.ceil(longest.width || 0));
+
+        // First ask the real DOM whether even the maximum safe width can keep
+        // all candidate lines on one row. If not, wrapping is unavoidable.
+        if (!autoDockContentFitsAtWidth(panel, safeMax)) {
+            setAutoDockCandidateWrapping(panel, false);
+            return safeMax;
+        }
+
+        // Binary-search the SMALLEST panel width that keeps every candidate
+        // line unwrapped. This automatically includes badge/grid/padding gaps
+        // because the fit test uses the final rendered DOM, not a guessed formula.
+        let low = safeMin;
+        let high = safeMax;
+        while (high - low > 3) {
+            const mid = Math.floor((low + high) / 2);
+            if (autoDockContentFitsAtWidth(panel, mid)) {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        let chosen = high;
+        while (chosen < safeMax && !autoDockContentFitsAtWidth(panel, chosen)) {
+            chosen += 1;
+        }
+
+        // Small visual breathing room after the exact fit point.
+        chosen = Math.min(safeMax, chosen + 10);
+        autoDockContentFitsAtWidth(panel, chosen);
+        return chosen;
+    }
+
+    function applySafeIcdWrapping(panel, preferSingleLine = false) {
+        if (!panel) return;
+        // Kept for compatibility with earlier call sites. Wrapping is now
+        // controlled for ALL candidate lines, not just ICD.
+        setAutoDockCandidateWrapping(panel, !!preferSingleLine);
+    }
+
+    function layoutAutoDockPanel(panel) {
+        if (!panel || !panel.isConnected) return;
+        if (panel.__autoLayoutBusy) return;
+        panel.__autoLayoutBusy = true;
+
+        try {
+            const body = panel.querySelector('.madp-body');
+            const head = panel.querySelector('.madp-head');
+            if (!body || !head) return;
+
+            const vv = window.visualViewport;
+            const vw = Math.max(300, (vv && vv.width) || window.innerWidth || document.documentElement.clientWidth || 0);
+            const vh = Math.max(300, (vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0);
+            const isLong = panel.classList.contains('madp-long');
+        const isXaiReport = !!panel.querySelector('.xai-report');
+        panel.dataset.layoutMode = isXaiReport ? 'xai-content-driven' : (isLong ? 'long' : 'compact');
+            const sideGap = vw < 640 ? 10 : 12;
+            const bottomGap = isLong ? (vw < 640 ? 88 : 96) : (vw < 640 ? 78 : 84);
+            const safeMax = Math.max(300, vw - sideGap * 2);
+
+            panel.style.setProperty('display', 'flex', 'important');
+            panel.style.setProperty('flex-direction', 'column', 'important');
+            panel.style.setProperty('box-sizing', 'border-box', 'important');
+            panel.style.setProperty('overflow', 'hidden', 'important');
+
+            body.style.setProperty('max-height', 'none', 'important');
+            body.style.setProperty('height', 'auto', 'important');
+            body.style.setProperty('overflow', 'visible', 'important');
+
+            let width;
+            if (isLong || isXaiReport) {
+                // Start at maximum available width so measurement is never
+                // polluted by text that was already wrapped in a narrow panel.
+                panel.style.setProperty('width', `${safeMax}px`, 'important');
+                panel.style.setProperty('max-width', `${safeMax}px`, 'important');
+                setAutoDockCandidateWrapping(panel, true);
+                void panel.offsetWidth;
+                width = measureContentDrivenPanelWidth(panel, vw);
+            } else {
+                setAutoDockCandidateWrapping(panel, false);
+                panel.style.setProperty('width', `${Math.min(350, safeMax)}px`, 'important');
+                panel.style.setProperty('max-width', `${safeMax}px`, 'important');
+                void panel.offsetWidth;
+                width = Math.min(Math.max(300, panel.scrollWidth + 8), safeMax);
+            }
+
+            width = Math.max(Math.min(width, safeMax), Math.min(320, safeMax));
+            panel.style.setProperty('width', `${Math.round(width)}px`, 'important');
+            panel.style.setProperty('max-width', `${Math.round(width)}px`, 'important');
+            void panel.offsetWidth;
+
+            // If the chosen width keeps all lines intact, keep nowrap. If the
+            // viewport itself is too narrow, allow safe wrapping everywhere.
+            const contentDriven = isLong || isXaiReport;
+            const allFit = contentDriven ? autoDockContentFitsAtWidth(panel, width) : true;
+            setAutoDockCandidateWrapping(panel, contentDriven && allFit);
+            void panel.offsetWidth;
+
+            const left = Math.max(sideGap, Math.round(vw - width - sideGap));
+            panel.style.setProperty('left', `${left}px`, 'important');
+            panel.style.setProperty('right', 'auto', 'important');
+            panel.style.setProperty('bottom', `${bottomGap}px`, 'important');
+
+            // Height is measured only AFTER final width and wrapping state.
+            body.style.setProperty('max-height', 'none', 'important');
+            body.style.setProperty('height', 'auto', 'important');
+            body.style.setProperty('overflow-y', 'visible', 'important');
+            body.style.setProperty('overflow-x', 'hidden', 'important');
+            void body.offsetHeight;
+
+            const naturalBodyHeight = Math.ceil(body.scrollHeight);
+            const headHeight = Math.ceil(head.getBoundingClientRect().height);
+            const availablePanelHeight = Math.max(210, vh - bottomGap - 14);
+            const availableBodyHeight = Math.max(140, availablePanelHeight - headHeight);
+            const fitsHeight = naturalBodyHeight <= availableBodyHeight;
+
+            panel.style.setProperty('height', 'auto', 'important');
+            panel.style.setProperty('max-height', `${availablePanelHeight}px`, 'important');
+            body.style.setProperty('flex', '0 1 auto', 'important');
+            body.style.setProperty('min-height', '0', 'important');
+            body.style.setProperty('height', fitsHeight ? 'auto' : `${availableBodyHeight}px`, 'important');
+            body.style.setProperty('max-height', fitsHeight ? 'none' : `${availableBodyHeight}px`, 'important');
+            body.style.setProperty('overflow-y', fitsHeight ? 'visible' : 'auto', 'important');
+
+            const tail = panel.querySelector('.madp-tail');
+            if (tail) {
+                tail.style.setProperty('right', '28px', 'important');
+                tail.style.setProperty('bottom', '-6px', 'important');
+            }
+        } finally {
+            panel.__autoLayoutBusy = false;
+        }
+    }
+
+    function installAutoDockContentResizeObserver(panel) {
+        if (!panel || panel.__contentResizeObserverInstalled || typeof ResizeObserver !== 'function') return;
+        panel.__contentResizeObserverInstalled = true;
+        let timer = 0;
+        const ro = new ResizeObserver(() => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                if (panel.isConnected) layoutAutoDockPanel(panel);
+            }, 40);
+        });
+        const body = panel.querySelector('.madp-body');
+        if (body) ro.observe(body);
+        panel.__contentResizeObserver = ro;
+    }
+
+
+    function ensureUnifiedAutoV768Styles() {
+        if (document.getElementById('medinet-auto-v768-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v768-style';
+        style.textContent = `
+            /* =====================================================
+               v7.68 — COMPACT WORDING + TIGHTER LAYOUT
+               ===================================================== */
+            #medinet-auto-dock-panel.madp-long .madp-body {
+                padding: 12px 14px 14px !important;
+            }
+            #medinet-auto-dock-panel .xai-report {
+                gap: 10px !important;
+            }
+            #medinet-auto-dock-panel .xai-patient {
+                padding-bottom: 8px !important;
+            }
+            #medinet-auto-dock-panel .xai-patient-name {
+                font-size: 16px !important;
+                line-height: 1.22 !important;
+            }
+            #medinet-auto-dock-panel .xai-patient-meta {
+                margin-top: 3px !important;
+                font-size: 12.5px !important;
+                line-height: 1.35 !important;
+            }
+            #medinet-auto-dock-panel .xai-summary {
+                gap: 8px !important;
+            }
+            #medinet-auto-dock-panel .xai-stat {
+                min-height: 54px !important;
+                padding: 8px 10px !important;
+                gap: 3px !important;
+            }
+            #medinet-auto-dock-panel .xai-stat span {
+                font-size: 12px !important;
+                line-height: 1.15 !important;
+            }
+            #medinet-auto-dock-panel .xai-stat b {
+                font-size: 26px !important;
+            }
+            #medinet-auto-dock-panel .xai-section {
+                gap: 7px !important;
+            }
+            #medinet-auto-dock-panel .xai-section-title {
+                font-size: 13px !important;
+                line-height: 1.2 !important;
+            }
+            #medinet-auto-dock-panel .xai-findings {
+                gap: 7px !important;
+            }
+            #medinet-auto-dock-panel .xai-finding {
+                gap: 10px !important;
+                padding: 9px 10px !important;
+                border-radius: 11px !important;
+            }
+            #medinet-auto-dock-panel .xai-badge {
+                padding: 5px 7px !important;
+                font-size: 11px !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-main {
+                grid-template-areas: 'name value' 'ref value' 'note note' !important;
+                row-gap: 3px !important;
+                column-gap: 10px !important;
+                align-items: center !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-name {
+                font-size: 13.5px !important;
+                line-height: 1.22 !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-value {
+                font-size: 22px !important;
+                line-height: 1 !important;
+                align-self: center !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-ref {
+                font-size: 12px !important;
+                line-height: 1.25 !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note {
+                margin-top: 2px !important;
+                padding: 5px 7px !important;
+                font-size: 11.5px !important;
+                line-height: 1.32 !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note span {
+                margin-right: 5px !important;
+                font-weight: 800 !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note b {
+                white-space: nowrap !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note b {
+                margin-right: 4px !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note em {
+                font-style: normal !important;
+            }
+            #medinet-auto-dock-panel .xai-save {
+                padding: 8px 10px !important;
+                font-size: 12.2px !important;
+                line-height: 1.35 !important;
+            }
+            @media (max-width: 640px) {
+                #medinet-auto-dock-panel .xai-finding-main {
+                    grid-template-areas: 'name value' 'ref ref' 'note note' !important;
+                }
+                #medinet-auto-dock-panel .xai-finding-value {
+                    font-size: 21px !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV770Styles() {
+        if (document.getElementById('medinet-auto-v770-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v770-style';
+        style.textContent = `
+            /* =====================================================
+               v7.70 — ICD TWO-LINE LAYOUT + TRUE CONTENT RESIZE
+               ===================================================== */
+            #medinet-auto-dock-panel .xai-finding-note {
+                display:grid !important;
+                grid-template-columns:1fr !important;
+                gap:2px !important;
+                padding:6px 8px !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-label {
+                display:block !important;
+                margin:0 !important;
+                color:#8a4a19 !important;
+                font:800 11.5px/1.25 'Segoe UI',Arial,sans-serif !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value {
+                display:block !important;
+                min-width:0 !important;
+                color:#7c3f10 !important;
+                font:600 12px/1.35 'Segoe UI',Arial,sans-serif !important;
+                overflow-wrap:anywhere !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value b {
+                color:#7c2d12 !important;
+                font-weight:900 !important;
+                margin:0 !important;
+                white-space:nowrap !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value em {
+                color:#7c3f10 !important;
+                font-style:normal !important;
+                margin:0 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV771Styles() {
+        if (document.getElementById('medinet-auto-v771-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v771-style';
+        style.textContent = `
+            /* =====================================================
+               v7.71 — WIDTH AUTO-SIZE BY LONGEST ICD LINE
+               ===================================================== */
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value {
+                white-space: nowrap !important;
+                overflow-wrap: normal !important;
+                word-break: normal !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value em {
+                white-space: nowrap !important;
+            }
+            @media (max-width: 639px) {
+                #medinet-auto-dock-panel .xai-finding-note .xai-icd-value,
+                #medinet-auto-dock-panel .xai-finding-note .xai-icd-value em {
+                    white-space: normal !important;
+                    overflow-wrap: anywhere !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV772Styles() {
+        if (document.getElementById('medinet-auto-v772-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v772-style';
+        style.textContent = `
+            /* =====================================================
+               v7.72 — SAFE RESPONSIVE REPORT
+               Expand first; wrap only when viewport really cannot fit.
+               Never allow text to escape a card.
+               ===================================================== */
+            #medinet-auto-dock-panel,
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .xai-report,
+            #medinet-auto-dock-panel .xai-finding,
+            #medinet-auto-dock-panel .xai-finding-main,
+            #medinet-auto-dock-panel .xai-finding-note,
+            #medinet-auto-dock-panel .xai-icd-value {
+                box-sizing:border-box !important;
+            }
+            #medinet-auto-dock-panel .xai-finding,
+            #medinet-auto-dock-panel .xai-finding-main,
+            #medinet-auto-dock-panel .xai-finding-note {
+                min-width:0 !important;
+                max-width:100% !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note {
+                width:100% !important;
+                overflow:hidden !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value {
+                display:block !important;
+                width:100% !important;
+                max-width:100% !important;
+                min-width:0 !important;
+                white-space:nowrap !important;
+                overflow:visible !important;
+                overflow-wrap:normal !important;
+                word-break:normal !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value.xai-wrap {
+                white-space:normal !important;
+                overflow:visible !important;
+                overflow-wrap:break-word !important;
+                word-break:normal !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value.xai-wrap em {
+                white-space:normal !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV773Styles() {
+        if (document.getElementById('medinet-auto-v773-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v773-style';
+        style.textContent = `
+            /* =====================================================
+               v7.73 — NEVER CROP REPORT TEXT
+               Grow when possible; wrap safely when necessary.
+               ===================================================== */
+            #medinet-auto-dock-panel .xai-finding,
+            #medinet-auto-dock-panel .xai-finding-main,
+            #medinet-auto-dock-panel .xai-finding-note,
+            #medinet-auto-dock-panel .xai-icd-value {
+                min-width:0 !important;
+                max-width:100% !important;
+                box-sizing:border-box !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note {
+                width:100% !important;
+                overflow:visible !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value,
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value.xai-wrap,
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value em,
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value.xai-wrap em {
+                display:block !important;
+                width:auto !important;
+                max-width:100% !important;
+                white-space:normal !important;
+                overflow:visible !important;
+                overflow-wrap:break-word !important;
+                word-break:normal !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value b {
+                display:inline !important;
+                white-space:nowrap !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note .xai-icd-value em {
+                display:inline !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    let medinetAutoDockResizeBound = false;
+
+    function ensureAutoDockResizeWatcher() {
+        if (medinetAutoDockResizeBound) return;
+        medinetAutoDockResizeBound = true;
+        window.addEventListener('resize', () => {
+            const panel = document.getElementById('medinet-auto-dock-panel');
+            if (panel) {
+                requestAnimationFrame(() => layoutAutoDockPanel(panel));
+            }
+        }, { passive: true });
+    }
+    function ensureUnifiedAutoV774Styles() {
+        if (document.getElementById('medinet-auto-v774-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v774-style';
+        style.textContent = `
+            /* v7.74 — true content-driven bubble sizing */
+            #medinet-auto-dock-panel,
+            #medinet-auto-dock-panel .madp-body,
+            #medinet-auto-dock-panel .xai-report,
+            #medinet-auto-dock-panel .xai-finding,
+            #medinet-auto-dock-panel .xai-finding-main,
+            #medinet-auto-dock-panel .xai-finding-note,
+            #medinet-auto-dock-panel .xai-icd-value {
+                box-sizing:border-box !important;
+                min-width:0 !important;
+            }
+            #medinet-auto-dock-panel .xai-finding-note,
+            #medinet-auto-dock-panel .xai-icd-value {
+                max-width:100% !important;
+                overflow:visible !important;
+                text-overflow:clip !important;
+            }
+            #medinet-auto-dock-panel .xai-icd-value,
+            #medinet-auto-dock-panel .xai-icd-value em {
+                white-space:normal !important;
+                word-break:normal !important;
+                overflow-wrap:normal !important;
+            }
+            #medinet-auto-dock-panel .madp-body {
+                min-height:0 !important;
+                overflow-x:hidden !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV775Styles() {
+        if (document.getElementById('medinet-auto-v775-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v775-style';
+        style.textContent = `
+            /* v7.75 — exact content geometry for ICD line */
+            #medinet-auto-dock-panel .xai-finding-note {
+                display:grid !important;
+                grid-template-columns:minmax(0,1fr) !important;
+                gap:3px !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+            }
+            #medinet-auto-dock-panel .xai-icd-label {
+                display:block !important;
+                width:100% !important;
+                margin:0 !important;
+                line-height:1.2 !important;
+            }
+            #medinet-auto-dock-panel .xai-icd-value {
+                display:block !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+                line-height:1.3 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV776Styles() {
+        if (document.getElementById('medinet-auto-v776-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v776-style';
+        style.textContent = `
+            /* v7.76 — JS decides width/wrapping from actual rendered content */
+            #medinet-auto-dock-panel .xai-icd-value,
+            #medinet-auto-dock-panel .xai-icd-value em,
+            #medinet-auto-dock-panel .xai-finding-name,
+            #medinet-auto-dock-panel .xai-finding-ref,
+            #medinet-auto-dock-panel .xai-patient-name,
+            #medinet-auto-dock-panel .xai-patient-meta,
+            #medinet-auto-dock-panel .xai-section-title,
+            #medinet-auto-dock-panel .xai-chip,
+            #medinet-auto-dock-panel .xai-save {
+                word-break:normal !important;
+                text-overflow:clip !important;
+                overflow:visible !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function ensureUnifiedAutoV767Styles() {
+        if (document.getElementById('medinet-auto-v767-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v767-style';
+        style.textContent = `
+            /* =====================================================
+               v7.67 — CLOSEABLE BUBBLE
+               ===================================================== */
+            #medinet-auto-dock-panel .madp-head {
+                display:flex !important;
+                align-items:center !important;
+                gap:8px !important;
+                padding-right:8px !important;
+            }
+            #medinet-auto-dock-panel .madp-title {
+                flex:1 1 auto !important;
+                min-width:0 !important;
+            }
+            #medinet-auto-dock-panel .madp-close {
+                flex:0 0 auto !important;
+                width:32px !important;
+                height:32px !important;
+                display:flex !important;
+                align-items:center !important;
+                justify-content:center !important;
+                padding:0 !important;
+                margin-left:auto !important;
+                border:1px solid #cbd5e1 !important;
+                border-radius:9px !important;
+                background:#ffffff !important;
+                color:#334155 !important;
+                font:900 20px/1 'Segoe UI',Arial,sans-serif !important;
+                cursor:pointer !important;
+                box-shadow:0 1px 2px rgba(15,23,42,.06) !important;
+                transition:background .12s ease,border-color .12s ease,transform .12s ease !important;
+            }
+            #medinet-auto-dock-panel .madp-close:hover {
+                background:#f1f5f9 !important;
+                border-color:#94a3b8 !important;
+            }
+            #medinet-auto-dock-panel .madp-close:active {
+                transform:scale(.95) !important;
+            }
+            #medinet-auto-dock-panel.madp-warn .madp-close {
+                background:#fffaf4 !important;
+                border-color:#edc79b !important;
+                color:#92400e !important;
+            }
+            #medinet-auto-dock-panel.madp-error .madp-close {
+                background:#fff5f5 !important;
+                border-color:#fecaca !important;
+                color:#b91c1c !important;
+            }
+            @media(max-width:640px){
+                #medinet-auto-dock-panel .madp-close {
+                    width:34px !important;
+                    height:34px !important;
+                    font-size:21px !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    let medinetAutoDockEscapeBound = false;
+
+    function ensureAutoDockEscapeWatcher() {
+        if (medinetAutoDockEscapeBound) return;
+        medinetAutoDockEscapeBound = true;
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            const panel = document.getElementById('medinet-auto-dock-panel');
+            if (!panel) return;
+            event.preventDefault();
+            closeAutoDockPanel();
+        });
+    }
+
+    let medinetRandomPlasmaTimer = null;
+    let medinetRandomPlasmaHideTimers = [];
+
+    function ensureLightningSvg(button) {
+        if (!button) return null;
+        let svg = button.querySelector('.mau-lightning-svg');
+        if (svg) return svg;
+        const ns = 'http://www.w3.org/2000/svg';
+        svg = document.createElementNS(ns,'svg');
+        svg.setAttribute('class','mau-lightning-svg');
+        svg.setAttribute('viewBox','0 0 160 160');
+        svg.setAttribute('aria-hidden','true');
+        const main = document.createElementNS(ns,'polyline');
+        main.setAttribute('class','mau-lightning-main');
+        svg.appendChild(main);
+        for (let i=0;i<7;i++) {
+            const branch = document.createElementNS(ns,'polyline');
+            branch.setAttribute('class','mau-lightning-branch');
+            branch.dataset.branchIndex = String(i);
+            svg.appendChild(branch);
+        }
+        button.appendChild(svg);
+        return svg;
+    }
+
+    function stopRandomPlasmaBursts() {
+        if (medinetRandomPlasmaTimer) {
+            clearTimeout(medinetRandomPlasmaTimer);
+            medinetRandomPlasmaTimer = null;
+        }
+        medinetRandomPlasmaHideTimers.forEach(t => clearTimeout(t));
+        medinetRandomPlasmaHideTimers = [];
+        const btn = document.getElementById('medinet-auto-unified');
+        if (!btn) return;
+        const svg = ensureLightningSvg(btn);
+        if (!svg) return;
+        svg.querySelectorAll('.mau-lightning-main,.mau-lightning-branch').forEach(el => {
+            el.style.opacity = '0';
+        });
+    }
+
+    function makeLightningPoints(angleDeg, length, wobble, segments) {
+        const cx = 80, cy = 80;
+        const a = angleDeg * Math.PI / 180;
+        const startR = 37;
+        const sx = cx + Math.cos(a) * startR;
+        const sy = cy + Math.sin(a) * startR;
+        const nx = -Math.sin(a), ny = Math.cos(a);
+        const pts = [];
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const baseX = sx + Math.cos(a) * length * t;
+            const baseY = sy + Math.sin(a) * length * t;
+            const falloff = Math.sin(Math.PI * t);
+            const jitter = i === 0 || i === segments ? 0 : ((Math.random() * 2 - 1) * wobble * (.45 + .55 * falloff));
+            pts.push([baseX + nx * jitter, baseY + ny * jitter]);
+        }
+        return pts;
+    }
+
+    function pointsToString(points) {
+        return points.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+    }
+
+    function fireLightningFlash(button) {
+        if (!button || !button.isConnected || !button.classList.contains('mau-running')) return;
+        const svg = ensureLightningSvg(button);
+        if (!svg) return;
+        const main = svg.querySelector('.mau-lightning-main');
+        const branches = Array.from(svg.querySelectorAll('.mau-lightning-branch'));
+
+        const angle = Math.random() * 360;
+        const length = 62 + Math.random() * 42;
+        const segments = 12 + Math.floor(Math.random()*5);
+        const mainPts = makeLightningPoints(angle,length,8.8,segments);
+        main.setAttribute('points',pointsToString(mainPts));
+
+        branches.forEach(b=>{ b.style.opacity='0'; b.setAttribute('points',''); });
+        const branchCount = 4 + Math.floor(Math.random()*3); // 4–6 branches
+        for (let bi=0; bi<branchCount; bi++) {
+            const branch = branches[bi];
+            if (!branch) continue;
+            const minIdx = Math.max(2, Math.floor(segments*.25));
+            const maxIdx = Math.min(segments-2, Math.floor(segments*.82));
+            const branchStartIndex = minIdx + Math.floor(Math.random()*Math.max(1,maxIdx-minIdx+1));
+            const [bx,by] = mainPts[branchStartIndex];
+            const sign = Math.random()<.5 ? -1 : 1;
+            const branchAngle = angle + sign*(24 + Math.random()*48);
+            const ba = branchAngle*Math.PI/180;
+            const blen = 20 + Math.random()*32;
+            const bseg = 4 + Math.floor(Math.random()*3);
+            const bnx=-Math.sin(ba), bny=Math.cos(ba);
+            const bpts=[[bx,by]];
+            for(let i=1;i<=bseg;i++){
+                const t=i/bseg;
+                const j=(Math.random()*2-1)*(3.4+2.2*Math.sin(Math.PI*t));
+                bpts.push([
+                    bx+Math.cos(ba)*blen*t+bnx*j,
+                    by+Math.sin(ba)*blen*t+bny*j
+                ]);
+            }
+            branch.setAttribute('points',pointsToString(bpts));
+            branch.style.opacity=String(.58+Math.random()*.34);
+        }
+
+        main.style.opacity='1';
+        const visibleMs = 260 + Math.floor(Math.random()*150);
+        const hide1=setTimeout(()=>{
+            if (!main.isConnected) return;
+            main.style.opacity='0';
+            branches.forEach(b=>b.style.opacity='0');
+        },visibleMs);
+        medinetRandomPlasmaHideTimers.push(hide1);
+
+        // Electrical after-flash: same direction, new jagged path, slightly dimmer.
+        if (Math.random() < .72) {
+            const reflash=setTimeout(()=>{
+                if (!button.classList.contains('mau-running') || !main.isConnected) return;
+                const pts2=makeLightningPoints(angle+(Math.random()*8-4),length*(.92+Math.random()*.16),6.4,segments);
+                main.setAttribute('points',pointsToString(pts2));
+                main.style.opacity='.82';
+                branches.forEach((b,i)=>{
+                    if (i<branchCount) b.style.opacity=String(.35+Math.random()*.35);
+                });
+                const hide2=setTimeout(()=>{
+                    if (main.isConnected) main.style.opacity='0';
+                    branches.forEach(b=>{ if(b.isConnected) b.style.opacity='0'; });
+                },130+Math.floor(Math.random()*95));
+                medinetRandomPlasmaHideTimers.push(hide2);
+            },120+Math.floor(Math.random()*110));
+            medinetRandomPlasmaHideTimers.push(reflash);
+        }
+    }
+
+    function randomPlasmaBurstTick(button) {
+        if (!button || !button.isConnected || !button.classList.contains('mau-running')) {
+            stopRandomPlasmaBursts();
+            return;
+        }
+        // One electrical strike at a time; occasional quick second strike.
+        fireLightningFlash(button);
+        medinetRandomPlasmaTimer=setTimeout(
+            ()=>randomPlasmaBurstTick(button),
+            280+Math.floor(Math.random()*720)
+        );
+    }
+
+    function installRandomPlasmaController(button) {
+        if (!button || button.__randomPlasmaInstalled) return;
+        button.__randomPlasmaInstalled=true;
+        ensureLightningSvg(button);
+        const sync=()=>{
+            stopRandomPlasmaBursts();
+            if (button.classList.contains('mau-running')) {
+                medinetRandomPlasmaTimer=setTimeout(()=>randomPlasmaBurstTick(button),80+Math.floor(Math.random()*180));
+            }
+        };
+        const observer=new MutationObserver(sync);
+        observer.observe(button,{attributes:true,attributeFilter:['class']});
+        sync();
+    }
+
     function closeAutoDockPanel() {
         const old = document.getElementById('medinet-auto-dock-panel');
-        if (old) old.remove();
+        if (old) {
+            if (old.__contentResizeObserver) {
+                try { old.__contentResizeObserver.disconnect(); } catch (e) {}
+            }
+            old.remove();
+        }
     }
 
     function showAutoDockPanel(title, bodyHtml, type = 'info', autoCloseMs = 0) {
@@ -11212,8 +15399,34 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoV749Styles();
         ensureUnifiedAutoV750Styles();
+        ensureUnifiedAutoV751Styles();
+        ensureUnifiedAutoV752Styles();
+        ensureUnifiedAutoV753Styles();
+        ensureUnifiedAutoV754Styles();
+        ensureUnifiedAutoV755Styles();
+        ensureUnifiedAutoV756Styles();
+        ensureUnifiedAutoV757Styles();
+        ensureUnifiedAutoV758Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
+        ensureUnifiedAutoV759Styles();
+        ensureUnifiedAutoV761Styles();
+        ensureUnifiedAutoV762Styles();
+        ensureUnifiedAutoV763Styles();
+        ensureUnifiedAutoV764Styles();
+        ensureUnifiedAutoV765Styles();
+        ensureUnifiedAutoV767Styles();
+        ensureUnifiedAutoV768Styles();
+        ensureUnifiedAutoV770Styles();
+        ensureUnifiedAutoV771Styles();
+        ensureUnifiedAutoV772Styles();
+        ensureUnifiedAutoV773Styles();
+        ensureUnifiedAutoV774Styles();
+        ensureUnifiedAutoV775Styles();
+        ensureUnifiedAutoV776Styles();
+        promoteFinalAutoStyles();
         ensureAutoDockContextWatcher();
+        ensureAutoDockResizeWatcher();
+        ensureAutoDockEscapeWatcher();
         closeAutoDockPanel();
 
         const panel = document.createElement('div');
@@ -11227,14 +15440,40 @@ async function autoM2KhamLamSang() {
             '<div class="madp-head">' +
                 '<span class="madp-pulse"></span>' +
                 '<div class="madp-title"></div>' +
+                '<button type="button" class="madp-close" aria-label="Đóng thông báo" title="Đóng">×</button>' +
             '</div>' +
             '<div class="madp-body"></div>' +
             '<span class="madp-tail" aria-hidden="true"></span>';
 
         panel.querySelector('.madp-title').textContent = String(title || 'Thông báo');
         panel.querySelector('.madp-body').innerHTML = String(bodyHtml || '');
+        if (panel.querySelector('.xai-report')) {
+            panel.classList.add('madp-long');
+        }
+        const closeButton = panel.querySelector('.madp-close');
+        if (closeButton) {
+            closeButton.style.setProperty('display', 'flex', 'important');
+            closeButton.style.setProperty('visibility', 'visible', 'important');
+            closeButton.style.setProperty('opacity', '1', 'important');
+            closeButton.style.setProperty('pointer-events', 'auto', 'important');
+            closeButton.style.setProperty('position', 'relative', 'important');
+            closeButton.style.setProperty('z-index', '50', 'important');
+            closeButton.addEventListener('pointerdown', event => event.stopPropagation());
+            closeButton.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeAutoDockPanel();
+            });
+        }
         document.body.appendChild(panel);
-        requestAnimationFrame(() => panel.classList.add('madp-show'));
+        applyInspectorContrastHardening(panel);
+        hardenXaiReport(panel);
+        installAutoDockContentResizeObserver(panel);
+        requestAnimationFrame(() => {
+            layoutAutoDockPanel(panel);
+            requestAnimationFrame(() => layoutAutoDockPanel(panel));
+            panel.classList.add('madp-show');
+        });
 
         if (autoCloseMs > 0) {
             setTimeout(() => {
@@ -11249,6 +15488,12 @@ async function autoM2KhamLamSang() {
 
         ensureUnifiedAutoStyles();
         ensureUnifiedAutoSpeechBubbleStyles();
+        ensureUnifiedAutoV759Styles();
+        ensureUnifiedAutoV761Styles();
+        ensureUnifiedAutoV762Styles();
+        ensureUnifiedAutoV763Styles();
+        ensureUnifiedAutoV764Styles();
+        ensureUnifiedAutoV765Styles();
         ensureUnifiedAutoV744Styles();
         ensureUnifiedAutoV745Styles();
         ensureUnifiedAutoV746Styles();
@@ -11256,6 +15501,13 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoV749Styles();
         ensureUnifiedAutoV750Styles();
+        ensureUnifiedAutoV751Styles();
+        ensureUnifiedAutoV752Styles();
+        ensureUnifiedAutoV753Styles();
+        ensureUnifiedAutoV754Styles();
+        ensureUnifiedAutoV755Styles();
+        ensureUnifiedAutoV756Styles();
+        ensureUnifiedAutoV757Styles();
 
         message = normalizeAutoMessageModel(
             message
@@ -11271,10 +15523,10 @@ async function autoM2KhamLamSang() {
         const parsed = parseAutoNoticeMessage(message, 'Thông báo');
         const fallbackBody =
             parsed.type === 'ok'
-                ? 'Đã xử lý xong. Vui lòng kiểm tra trước khi lưu.'
+                ? 'Đã xử lý xong. Kiểm tra nhanh trước khi lưu.'
                 : parsed.type === 'warn'
-                    ? 'Vui lòng kiểm tra lại dữ liệu.'
-                    : 'AUTO gặp lỗi. Vui lòng kiểm tra lại.';
+                    ? 'Có mục cần kiểm tra lại trước khi tiếp tục.'
+                    : 'AUTO gặp lỗi. Kiểm tra lại thông tin và thử lại.';
 
         showAutoDockPanel(
             parsed.title,
@@ -11292,6 +15544,19 @@ async function autoM2KhamLamSang() {
     function hasCurrentCanLamSangWarning() {
 
         if (!lastCanLamSangReport) {
+            return false;
+        }
+
+        if (isModelListPage()) {
+            return false;
+        }
+
+        const currentPatientKey = getCurrentPatientKey();
+        if (
+            lastCanLamSangReportPatientKey &&
+            currentPatientKey &&
+            lastCanLamSangReportPatientKey !== currentPatientKey
+        ) {
             return false;
         }
 
@@ -11342,7 +15607,7 @@ async function autoM2KhamLamSang() {
             model
                 ? (
                     `AUTO ${model}` +
-                    (warning ? ' • Có cảnh báo, bấm dấu ! để xem' : '')
+                    (warning ? ' • Có nội dung cần kiểm tra' : '')
                 )
                 : 'Chưa nhận diện được M2-M6. Hãy mở từ trang danh sách mẫu.';
     }
@@ -11504,7 +15769,7 @@ async function autoM2KhamLamSang() {
         if (abnormalCount || missingCount) {
             warning = `\n⚠️ ${abnormalCount} bất thường` +
                 (missingCount ? ` · ${missingCount} thông số thiếu` : '') +
-                '. Bấm dấu ! để xem.';
+                '. Bấm dấu ! để xem chi tiết.';
         }
 
         return (
@@ -11536,7 +15801,21 @@ async function autoM2KhamLamSang() {
         ensureUnifiedAutoV748Styles();
         ensureUnifiedAutoV749Styles();
         ensureUnifiedAutoV750Styles();
+        ensureUnifiedAutoV751Styles();
+        ensureUnifiedAutoV752Styles();
+        ensureUnifiedAutoV753Styles();
+        ensureUnifiedAutoV754Styles();
+        ensureUnifiedAutoV755Styles();
+        ensureUnifiedAutoV756Styles();
+        ensureUnifiedAutoV757Styles();
+        ensureUnifiedAutoV758Styles();
         ensureUnifiedAutoSpeechBubbleStyles();
+        ensureUnifiedAutoV759Styles();
+        ensureUnifiedAutoV761Styles();
+        ensureUnifiedAutoV762Styles();
+        ensureUnifiedAutoV763Styles();
+        ensureUnifiedAutoV764Styles();
+        ensureUnifiedAutoV765Styles();
 
         const button =
             document.createElement(
@@ -11612,6 +15891,13 @@ async function autoM2KhamLamSang() {
                     return;
                 }
 
+                // Khi có cảnh báo, toàn bộ reactor đỏ trở thành nút XEM LẠI.
+                // Người dùng lớn tuổi không cần nhấn chính xác vào dấu chấm than.
+                if (hasCurrentCanLamSangWarning()) {
+                    xemLaiCanhBao();
+                    return;
+                }
+
                 const model =
                     getCurrentMedinetModel();
 
@@ -11658,9 +15944,12 @@ async function autoM2KhamLamSang() {
                 unifiedAutoRuntime.reportShown =
                     false;
 
+                // Giữ cảnh báo xét nghiệm khi chuyển sang các mục khác
+                // của cùng bệnh nhân. Chỉ đóng bubble đang mở; dữ liệu cảnh báo
+                // được xóa khi quay về danh sách hoặc sang bệnh nhân khác.
                 closeAutoDockPanel();
 
-                showRunningSpeechBubble(`⏳ ${model} · Đang AUTO\nĐang xử lý, vui lòng chờ...`);
+                showRunningSpeechBubble(`⏳ ${model} · Đang tự động điền\nHệ thống đang xử lý. Giữ nguyên trang này đến khi hoàn tất.`);
 
                 let completed =
                     false;
@@ -11738,6 +16027,8 @@ async function autoM2KhamLamSang() {
             button
         );
 
+        installRandomPlasmaController(button);
+        restoreLastCanLamSangReport();
         updateUnifiedAutoButton();
     }
 
@@ -11757,6 +16048,25 @@ async function autoM2KhamLamSang() {
 
         const refresh =
             () => {
+
+                if (isModelListPage()) {
+                    // Chỉ khi quay lại danh sách để chọn ca mới mới xóa cảnh báo.
+                    if (lastCanLamSangReport || lastCanLamSangReportPatientKey) {
+                        clearLastCanLamSangReport();
+                    }
+                } else {
+                    const currentPatientKey = getCurrentPatientKey();
+                    if (
+                        lastCanLamSangReportPatientKey &&
+                        currentPatientKey &&
+                        lastCanLamSangReportPatientKey !== currentPatientKey
+                    ) {
+                        // Trường hợp hiếm: mở thẳng sang bệnh nhân khác mà không qua danh sách.
+                        clearLastCanLamSangReport();
+                    } else {
+                        restoreLastCanLamSangReport();
+                    }
+                }
 
                 const currentModel =
                     detectModelFromUrl(
