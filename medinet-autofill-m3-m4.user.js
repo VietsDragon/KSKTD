@@ -2730,6 +2730,16 @@ async function autoM2KhamLamSang() {
         durationMs
     ) {
 
+        // AUTO hợp nhất không dùng toast giữa màn hình.
+        if (
+            typeof unifiedAutoRuntime !== 'undefined' &&
+            unifiedAutoRuntime.running
+        ) {
+            unifiedAutoRuntime.lastMessage =
+                normalizeAutoMessageModel(message);
+            return;
+        }
+
         ensureModalStyles();
 
         const toast =
@@ -2931,6 +2941,46 @@ async function autoM2KhamLamSang() {
         bodyHtml,
         titleClass
     ) {
+
+        // Khi chạy từ nút AUTO hợp nhất: các thông báo thụ động
+        // không được bật modal giữa màn hình nữa.
+        // - Cảnh báo XN/bất thường: tích hợp vào badge ! của nút AUTO.
+        // - Lỗi/không tìm thấy/trùng dữ liệu: hiển thị panel neo cạnh nút AUTO.
+        if (
+            typeof unifiedAutoRuntime !== 'undefined' &&
+            unifiedAutoRuntime.running
+        ) {
+            const titleText = String(title || '');
+            const titleNorm = norm(titleText);
+            const passiveLabWarning =
+                titleNorm.includes('thiếu thông số xét nghiệm') ||
+                titleNorm.includes('có kết quả bất thường');
+
+            if (passiveLabWarning) {
+                // lastCanLamSangReport đã giữ đầy đủ chi tiết;
+                // updateUnifiedAutoButton() sẽ bật badge cảnh báo.
+                return Promise.resolve(true);
+            }
+
+            const plain = htmlToPlainText(bodyHtml);
+            unifiedAutoRuntime.blocked = true;
+            unifiedAutoRuntime.lastMessage =
+                `${titleText}\n\n${plain}`.trim();
+
+            const type =
+                titleNorm.includes('lỗi') || titleText.includes('❌')
+                    ? 'error'
+                    : 'warn';
+
+            showAutoDockPanel(
+                titleText,
+                bodyHtml,
+                type,
+                0
+            );
+
+            return Promise.resolve(true);
+        }
 
         return showModal({
             title,
@@ -8118,7 +8168,7 @@ async function autoM2KhamLamSang() {
             !lastCanLamSangReport
         ) {
 
-            infoModal(
+            showAutoDockPanel(
                 'Chưa có báo cáo',
                 '<div>Chưa có báo cáo nào trong phiên này.<br><br>' +
                 'Vui lòng bấm AUTO M3/AUTO M4 ở trang Khám cận ' +
@@ -8163,13 +8213,13 @@ async function autoM2KhamLamSang() {
                 r.findings
             );
 
-        infoModal(
+        showAutoDockPanel(
             `📋 Báo cáo gần nhất`,
             bodyHtml,
             r.findings.length ||
             (r.missingLabels && r.missingLabels.length)
-                ? 'mnm-warn'
-                : 'mnm-ok'
+                ? 'warn'
+                : 'info'
         );
     }
 
@@ -9428,10 +9478,301 @@ async function autoM2KhamLamSang() {
     }
 
 
+    function ensureUnifiedAutoV742Styles() {
+        if (document.getElementById('medinet-auto-v742-style')) return;
+
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v742-style';
+        style.textContent = `
+            /* =====================================================
+               v7.42 · REACTOR TURBINE
+               Bỏ hoàn toàn lửa/segment cam kiểu "cắm nến".
+               Hai rotor cyan điện quay ngược chiều, giao điểm phát hồ quang.
+               ===================================================== */
+            #medinet-auto-unified {
+                width: 58px !important;
+                height: 58px !important;
+                right: 24px !important;
+                bottom: 96px !important;
+                overflow: visible !important;
+                filter: drop-shadow(0 8px 17px rgba(2,6,23,.42)) !important;
+            }
+
+            #medinet-auto-unified .mau-flames,
+            #medinet-auto-unified .mau-sparks {
+                display: none !important;
+            }
+
+            #medinet-auto-unified .mau-shell {
+                inset: 2px !important;
+                border: 1px solid rgba(125,211,252,.30) !important;
+                background:
+                    radial-gradient(circle at 50% 45%, rgba(18,88,118,.72) 0 20%, rgba(4,23,40,.98) 51%, #01050d 100%) !important;
+                box-shadow:
+                    inset 0 0 0 1px rgba(255,255,255,.035),
+                    inset 0 0 14px rgba(34,211,238,.10),
+                    0 0 0 1px rgba(3,7,18,.88),
+                    0 0 10px rgba(34,211,238,.14) !important;
+            }
+
+            #medinet-auto-unified .mau-shell::before {
+                inset: 6px !important;
+                border: 1px solid rgba(103,232,249,.14) !important;
+                box-shadow: inset 0 0 7px rgba(56,189,248,.10) !important;
+            }
+
+            #medinet-auto-unified .mau-shell::after {
+                opacity: 0 !important;
+            }
+
+            #medinet-auto-unified .mau-ring {
+                inset: 1px !important;
+                opacity: .92 !important;
+                background: conic-gradient(
+                    from 8deg,
+                    transparent 0 18deg,
+                    rgba(224,252,255,.96) 18deg 24deg,
+                    rgba(34,211,238,.92) 24deg 52deg,
+                    transparent 52deg 121deg,
+                    rgba(56,189,248,.88) 121deg 153deg,
+                    transparent 153deg 225deg,
+                    rgba(165,243,252,.92) 225deg 233deg,
+                    rgba(14,165,233,.78) 233deg 260deg,
+                    transparent 260deg 360deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0) !important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0) !important;
+                filter: drop-shadow(0 0 3px rgba(34,211,238,.45)) !important;
+            }
+
+            #medinet-auto-unified .mau-ring2 {
+                inset: 6px !important;
+                opacity: .80 !important;
+                background: conic-gradient(
+                    from 192deg,
+                    transparent 0 38deg,
+                    rgba(99,102,241,.82) 38deg 66deg,
+                    rgba(125,211,252,.94) 66deg 74deg,
+                    transparent 74deg 182deg,
+                    rgba(34,211,238,.82) 182deg 214deg,
+                    transparent 214deg 300deg,
+                    rgba(196,181,253,.72) 300deg 326deg,
+                    transparent 326deg 360deg
+                ) !important;
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0) !important;
+                mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0) !important;
+                filter: drop-shadow(0 0 3px rgba(56,189,248,.32)) !important;
+            }
+
+            #medinet-auto-unified .mau-energy {
+                position: absolute;
+                inset: -7px;
+                border-radius: 50%;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity .18s ease;
+            }
+
+            #medinet-auto-unified .mau-energy::before,
+            #medinet-auto-unified .mau-energy::after {
+                content: '';
+                position: absolute;
+                width: 17px;
+                height: 2px;
+                border-radius: 999px;
+                top: 50%;
+                left: 50%;
+                background: linear-gradient(90deg, rgba(255,255,255,0), #ecfeff 30%, #67e8f9 58%, rgba(56,189,248,0));
+                box-shadow: 0 0 3px #fff, 0 0 7px rgba(34,211,238,.85), 0 0 13px rgba(59,130,246,.42);
+                transform-origin: -22px 50%;
+            }
+
+            #medinet-auto-unified .mau-energy::before { transform: translate(22px,-1px) rotate(21deg); }
+            #medinet-auto-unified .mau-energy::after  { transform: translate(22px,-1px) rotate(201deg); }
+
+            #medinet-auto-unified .mau-core {
+                inset: 10px !important;
+                background:
+                    radial-gradient(circle at 48% 31%, rgba(38,145,185,.48), rgba(5,35,55,.70) 42%, rgba(1,8,18,.98) 100%) !important;
+                border: 1px solid rgba(125,211,252,.28) !important;
+                box-shadow: inset 0 0 9px rgba(34,211,238,.08) !important;
+            }
+
+            #medinet-auto-unified .mau-model {
+                font-size: 19px !important;
+                line-height: 18px !important;
+                color: #f8fdff !important;
+                text-shadow: 0 0 4px rgba(207,250,254,.75), 0 0 9px rgba(34,211,238,.32) !important;
+            }
+
+            #medinet-auto-unified .mau-auto {
+                font-size: 5.7px !important;
+                letter-spacing: 1px !important;
+                color: #8defff !important;
+            }
+
+            #medinet-auto-unified.mau-running .mau-ring {
+                animation: mau-v742-rotor-a .62s linear infinite !important;
+            }
+            #medinet-auto-unified.mau-running .mau-ring2 {
+                animation: mau-v742-rotor-b .88s linear infinite reverse !important;
+            }
+            #medinet-auto-unified.mau-running .mau-energy {
+                opacity: 1;
+                animation: mau-v742-energy-spin .41s linear infinite;
+            }
+            #medinet-auto-unified.mau-running .mau-core {
+                animation: mau-v742-core-pulse .78s ease-in-out infinite alternate !important;
+            }
+
+            @keyframes mau-v742-rotor-a { to { transform: rotate(360deg); } }
+            @keyframes mau-v742-rotor-b { to { transform: rotate(360deg); } }
+            @keyframes mau-v742-energy-spin { to { transform: rotate(360deg); } }
+            @keyframes mau-v742-core-pulse {
+                from { box-shadow: inset 0 0 8px rgba(34,211,238,.08), 0 0 2px rgba(34,211,238,.05); }
+                to { box-shadow: inset 0 0 14px rgba(34,211,238,.19), 0 0 9px rgba(34,211,238,.19); }
+            }
+
+            /* Warning là một node chức năng riêng, không nhuộm cả turbine thành màu cam. */
+            #medinet-auto-unified .mau-warning {
+                top: -8px !important;
+                right: -8px !important;
+                width: 30px !important;
+                height: 30px !important;
+                background: transparent !important;
+                border: 0 !important;
+                box-shadow: none !important;
+            }
+            #medinet-auto-unified .mau-warning::before {
+                content: '!';
+                position: absolute;
+                width: 18px;
+                height: 18px;
+                right: 1px;
+                top: 1px;
+                display: grid;
+                place-items: center;
+                border-radius: 50%;
+                color: #fff7ed;
+                font: 900 12px/1 'Segoe UI',sans-serif;
+                background: linear-gradient(145deg,#f59e0b,#ea580c);
+                border: 1px solid rgba(255,237,213,.75);
+                box-shadow: 0 0 0 2px rgba(2,6,23,.90), 0 0 8px rgba(249,115,22,.48);
+                opacity: 0;
+                transform: scale(.7);
+                transition: opacity .15s, transform .15s;
+            }
+            #medinet-auto-unified.mau-has-warning .mau-warning::before {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            /* Panel thông báo gắn với AUTO - không chiếm giữa màn hình. */
+            #medinet-auto-dock-panel {
+                position: fixed;
+                right: 94px;
+                bottom: 90px;
+                z-index: 9999998;
+                width: min(360px, calc(100vw - 120px));
+                max-height: min(62vh, 520px);
+                overflow: auto;
+                border-radius: 13px;
+                background: linear-gradient(160deg, rgba(7,16,30,.97), rgba(3,9,19,.97));
+                color: #e7f8ff !important;
+                border: 1px solid rgba(103,232,249,.24);
+                box-shadow: 0 14px 40px rgba(2,6,23,.40), 0 0 14px rgba(34,211,238,.09);
+                font-family: 'Segoe UI',Roboto,Arial,sans-serif;
+                opacity: 0;
+                transform: translateX(8px) scale(.985);
+                transition: opacity .18s ease, transform .18s ease;
+                isolation: isolate;
+            }
+            #medinet-auto-dock-panel.madp-show { opacity: 1; transform: translateX(0) scale(1); }
+            #medinet-auto-dock-panel::after {
+                content: '';
+                position: fixed;
+                right: 82px;
+                bottom: 114px;
+                width: 10px;
+                height: 10px;
+                transform: rotate(45deg);
+                background: #050d19;
+                border-top: 1px solid rgba(103,232,249,.24);
+                border-right: 1px solid rgba(103,232,249,.24);
+            }
+            #medinet-auto-dock-panel .madp-head {
+                display:flex;
+                align-items:center;
+                gap:9px;
+                padding:11px 12px 9px;
+                border-bottom:1px solid rgba(148,163,184,.13);
+                position:sticky;
+                top:0;
+                background:rgba(5,13,25,.98);
+                z-index:2;
+            }
+            #medinet-auto-dock-panel .madp-pulse {
+                width:8px;height:8px;border-radius:50%;background:#22d3ee;
+                box-shadow:0 0 8px rgba(34,211,238,.7);
+                flex:none;
+            }
+            #medinet-auto-dock-panel.madp-warn .madp-pulse { background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,.7); }
+            #medinet-auto-dock-panel.madp-error .madp-pulse { background:#fb7185; box-shadow:0 0 8px rgba(251,113,133,.7); }
+            #medinet-auto-dock-panel .madp-title { flex:1;font-size:13px;font-weight:800;color:#f8fdff !important; }
+            #medinet-auto-dock-panel .madp-close {
+                width:25px;height:25px;border:0;border-radius:7px;background:rgba(148,163,184,.10);
+                color:#cbd5e1;font-size:18px;line-height:1;cursor:pointer;
+            }
+            #medinet-auto-dock-panel .madp-body {
+                padding:11px 13px 13px;
+                color:#d8edf5 !important;
+                font-size:12.5px;
+                line-height:1.55;
+            }
+            #medinet-auto-dock-panel .madp-body * { color:inherit !important; }
+            #medinet-auto-dock-panel .madp-body b,
+            #medinet-auto-dock-panel .madp-body strong { color:#fff !important; }
+            #medinet-auto-dock-panel .mnm-patient-card { background:rgba(15,23,42,.72)!important;border-color:rgba(103,232,249,.18)!important; }
+            #medinet-auto-dock-panel .mnm-note { background:rgba(15,23,42,.68)!important;color:#bfe9f7!important;border-color:rgba(103,232,249,.13)!important; }
+
+            /* Toast cũ nếu phát sinh ngoài AUTO cũng neo về cùng cụm điều khiển. */
+            .mnm-toast {
+                left:auto !important;
+                right:94px !important;
+                bottom:96px !important;
+                transform:translateX(8px) translateY(0) !important;
+                max-width:min(330px,calc(100vw - 120px)) !important;
+                background:#07111f !important;
+                color:#e7f8ff !important;
+                border:1px solid rgba(103,232,249,.22) !important;
+                box-shadow:0 12px 30px rgba(2,6,23,.34) !important;
+                font-size:12.5px !important;
+            }
+            .mnm-toast.mnm-toast-show { transform:translateX(0) translateY(0) !important; }
+
+            #medinet-auto-notice {
+                right:94px !important;
+                bottom:90px !important;
+                width:min(350px,calc(100vw - 120px)) !important;
+            }
+
+            @media (max-width:640px) {
+                #medinet-auto-unified { width:54px !important;height:54px !important;right:15px !important;bottom:86px !important; }
+                #medinet-auto-dock-panel, #medinet-auto-notice, .mnm-toast {
+                    right:76px !important;
+                    bottom:82px !important;
+                    width:min(290px,calc(100vw - 92px)) !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     const unifiedAutoRuntime = {
         running: false,
         model: '',
-        lastMessage: ''
+        lastMessage: '',
+        blocked: false
     };
 
     function normalizeAutoMessageModel(message) {
@@ -9448,6 +9789,52 @@ async function autoM2KhamLamSang() {
             /\bM[2-6]\b/g,
             model
         );
+    }
+
+    function htmlToPlainText(html) {
+        const box = document.createElement('div');
+        box.innerHTML = String(html || '');
+        return (box.innerText || box.textContent || '')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    }
+
+    function closeAutoDockPanel() {
+        const old = document.getElementById('medinet-auto-dock-panel');
+        if (old) old.remove();
+    }
+
+    function showAutoDockPanel(title, bodyHtml, type = 'info', autoCloseMs = 0) {
+        ensureUnifiedAutoStyles();
+        ensureUnifiedAutoV742Styles();
+        closeAutoDockPanel();
+
+        const panel = document.createElement('div');
+        panel.id = 'medinet-auto-dock-panel';
+        panel.className = `madp-${type}`;
+        panel.innerHTML =
+            '<div class="madp-head">' +
+                '<span class="madp-pulse"></span>' +
+                '<div class="madp-title"></div>' +
+                '<button type="button" class="madp-close" aria-label="Đóng">×</button>' +
+            '</div>' +
+            '<div class="madp-body"></div>';
+
+        panel.querySelector('.madp-title').textContent = String(title || 'Thông báo');
+        panel.querySelector('.madp-body').innerHTML = String(bodyHtml || '');
+        panel.querySelector('.madp-close').addEventListener('click', closeAutoDockPanel);
+        document.body.appendChild(panel);
+        requestAnimationFrame(() => panel.classList.add('madp-show'));
+
+        if (autoCloseMs > 0) {
+            setTimeout(() => {
+                if (panel.isConnected) {
+                    panel.classList.remove('madp-show');
+                    setTimeout(() => panel.remove(), 180);
+                }
+            }, autoCloseMs);
+        }
+        return panel;
     }
 
     function autoAlert(message) {
@@ -9926,8 +10313,24 @@ async function autoM2KhamLamSang() {
             .replace(/\n{3,}/g, '\n\n')
             .trim();
 
+        const report = lastCanLamSangReport;
+        const abnormalCount =
+            report && report.findings ? report.findings.length : 0;
+        const missingCount =
+            report && report.missingLabels ? report.missingLabels.length : 0;
+
+        const warningLine =
+            (abnormalCount || missingCount)
+                ? (
+                    `⚠️ Có ${abnormalCount} kết quả bất thường` +
+                    (missingCount ? ` · ${missingCount} thông số thiếu` : '') +
+                    '. Bấm dấu ! trên nút AUTO để xem chi tiết.\n\n'
+                )
+                : '';
+
         return (
             `⚠️ ${model} - AUTO hoàn tất · CHƯA LƯU\n\n` +
+            warningLine +
             (detail ? detail + '\n\n' : '') +
             '💾 HÃY BẤM “LƯU THAY ĐỔI” NGAY BÂY GIỜ.\n' +
             'Không chuyển tab / quay lại / mở hồ sơ khác trước khi lưu.'
@@ -9947,6 +10350,7 @@ async function autoM2KhamLamSang() {
         }
 
         ensureUnifiedAutoStyles();
+        ensureUnifiedAutoV742Styles();
 
         const button =
             document.createElement(
@@ -9968,6 +10372,7 @@ async function autoM2KhamLamSang() {
             '<span class="mau-shell"></span>' +
             '<span class="mau-ring"></span>' +
             '<span class="mau-ring2"></span>' +
+            '<span class="mau-energy" aria-hidden="true"></span>' +
             '<span class="mau-sparks" aria-hidden="true">' +
                 '<i></i><i></i><i></i><i></i><i></i>' +
             '</span>' +
@@ -10061,6 +10466,11 @@ async function autoM2KhamLamSang() {
                 unifiedAutoRuntime.lastMessage =
                     '';
 
+                unifiedAutoRuntime.blocked =
+                    false;
+
+                closeAutoDockPanel();
+
                 let completed =
                     false;
 
@@ -10098,7 +10508,7 @@ async function autoM2KhamLamSang() {
 
                     updateUnifiedAutoButton();
 
-                    if (completed) {
+                    if (completed && !unifiedAutoRuntime.blocked) {
                         autoAlert(
                             buildUnifiedCompletionMessage(
                                 model
@@ -10116,6 +10526,9 @@ async function autoM2KhamLamSang() {
 
                     unifiedAutoRuntime.lastMessage =
                         '';
+
+                    unifiedAutoRuntime.blocked =
+                        false;
                 }
             }
         );
@@ -10206,7 +10619,7 @@ async function autoM2KhamLamSang() {
         );
 
         log(
-            '✅ MEDINET AUTO M2-M6 UNIFIED READY v7.40'
+            '✅ MEDINET AUTO M2-M6 UNIFIED READY v7.42'
         );
 
         log(
