@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.39
+// @version      7.40
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -9145,74 +9145,232 @@ async function autoM2KhamLamSang() {
                     medinet-spark-flicker .16s steps(2,end) infinite;
             }
 
-            /* v7.39 - Lửa bốc lên rõ ràng khi AUTO đang chạy.
-               Lửa chỉ là hiệu ứng UI, không ảnh hưởng vùng bấm. */
+            /* =====================================================
+               v7.40 - INFERNO TURBINE / GHOST-RIDER STYLE
+               - Không còn "ngọn lửa cây nến" phía trên.
+               - Lửa ôm quanh bánh xe, quay theo turbine.
+               - Hai corona lửa quay ngược chiều -> cảm giác va chạm.
+               - Tia lửa/ember văng ra khỏi vành khi đang AUTO.
+               ===================================================== */
             #medinet-auto-unified .mau-flames {
                 position: absolute;
-                left: 50%;
-                top: -20px;
-                width: 58px;
-                height: 38px;
-                transform: translateX(-50%);
+                inset: -10px;
                 z-index: 0;
                 pointer-events: none;
                 opacity: 0;
-                overflow: visible;
-                filter: drop-shadow(0 -2px 6px rgba(249,115,22,.38));
+                border-radius: 50%;
+                transform: translateZ(0);
+                transition: opacity .18s ease;
             }
 
+            /* Corona lửa ngoài - xoáy thuận */
+            #medinet-auto-unified .mau-flames::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                border-radius: 50%;
+                background:
+                    conic-gradient(
+                        from 0deg,
+                        transparent 0 7deg,
+                        rgba(255,248,220,.98) 7deg 10deg,
+                        #ffd54a 10deg 15deg,
+                        #ff8a00 15deg 23deg,
+                        rgba(255,59,0,.92) 23deg 31deg,
+                        transparent 31deg 48deg,
+
+                        transparent 48deg 64deg,
+                        rgba(255,246,200,.94) 64deg 67deg,
+                        #ffc400 67deg 73deg,
+                        #ff6d00 73deg 83deg,
+                        rgba(255,45,0,.86) 83deg 91deg,
+                        transparent 91deg 116deg,
+
+                        transparent 116deg 137deg,
+                        #fff3c4 137deg 140deg,
+                        #ffca28 140deg 145deg,
+                        #ff7a00 145deg 154deg,
+                        rgba(255,36,0,.88) 154deg 163deg,
+                        transparent 163deg 196deg,
+
+                        transparent 196deg 215deg,
+                        #fff0b0 215deg 218deg,
+                        #ffb300 218deg 224deg,
+                        #ff6a00 224deg 234deg,
+                        rgba(255,45,0,.84) 234deg 242deg,
+                        transparent 242deg 276deg,
+
+                        transparent 276deg 296deg,
+                        #fff6d5 296deg 299deg,
+                        #ffd54f 299deg 304deg,
+                        #ff8500 304deg 313deg,
+                        rgba(255,50,0,.90) 313deg 322deg,
+                        transparent 322deg 360deg
+                    );
+                -webkit-mask: radial-gradient(farthest-side,
+                    transparent 0 58%,
+                    #000 61% 73%,
+                    transparent 76% 100%);
+                mask: radial-gradient(farthest-side,
+                    transparent 0 58%,
+                    #000 61% 73%,
+                    transparent 76% 100%);
+                filter:
+                    blur(.25px)
+                    drop-shadow(0 0 3px rgba(255,196,0,.95))
+                    drop-shadow(0 0 7px rgba(255,93,0,.78))
+                    drop-shadow(0 0 11px rgba(255,45,0,.48));
+                transform: scale(1.02);
+            }
+
+            /* Corona trong - quay ngược để tạo cảm giác 2 turbine cạ nhau */
+            #medinet-auto-unified .mau-flames::after {
+                content: '';
+                position: absolute;
+                inset: 6px;
+                border-radius: 50%;
+                background:
+                    repeating-conic-gradient(
+                        from 18deg,
+                        transparent 0 10deg,
+                        rgba(255,245,210,.98) 10deg 12deg,
+                        rgba(255,193,7,.94) 12deg 16deg,
+                        rgba(255,98,0,.88) 16deg 21deg,
+                        transparent 21deg 34deg
+                    );
+                -webkit-mask: radial-gradient(farthest-side,
+                    transparent 0 62%,
+                    #000 65% 78%,
+                    transparent 81% 100%);
+                mask: radial-gradient(farthest-side,
+                    transparent 0 62%,
+                    #000 65% 78%,
+                    transparent 81% 100%);
+                filter:
+                    drop-shadow(0 0 3px rgba(255,210,70,.90))
+                    drop-shadow(0 0 7px rgba(255,90,0,.62));
+                opacity: .88;
+            }
+
+            /* Ember / mạt lửa: bay VĂNG ra khỏi vành, không còn dựng như lửa cây nến */
             #medinet-auto-unified .mau-flames i {
                 position: absolute;
-                bottom: 0;
-                width: 8px;
-                height: 24px;
-                border-radius: 70% 30% 65% 35% / 75% 35% 65% 25%;
-                transform-origin: 50% 100%;
-                background:
-                    radial-gradient(circle at 50% 78%, #ecfeff 0 12%, transparent 13%),
-                    linear-gradient(to top,
-                        #22d3ee 0 10%,
-                        #fde68a 11% 32%,
-                        #fb923c 33% 62%,
-                        #f97316 63% 78%,
-                        rgba(239,68,68,.05) 100%);
+                left: 50%;
+                top: 50%;
+                width: 2px;
+                height: 9px;
+                margin-left: -1px;
+                margin-top: -4px;
+                border-radius: 999px 999px 60% 60%;
+                transform-origin: 1px 4px;
+                background: linear-gradient(
+                    to top,
+                    rgba(255,36,0,0),
+                    #ff4d00 22%,
+                    #ffb300 60%,
+                    #fff8dc 100%
+                );
                 box-shadow:
-                    0 -3px 7px rgba(251,146,60,.52),
-                    0 -8px 14px rgba(249,115,22,.20);
-                opacity: .95;
+                    0 0 3px rgba(255,238,170,.95),
+                    0 0 7px rgba(255,116,0,.86);
+                opacity: 0;
+                will-change: transform, opacity;
             }
 
-            #medinet-auto-unified .mau-flames i:nth-child(1) { left: 3px;  height: 17px; transform: rotate(-24deg) scale(.72); }
-            #medinet-auto-unified .mau-flames i:nth-child(2) { left: 10px; height: 25px; transform: rotate(-14deg) scale(.86); }
-            #medinet-auto-unified .mau-flames i:nth-child(3) { left: 19px; height: 31px; transform: rotate(-5deg)  scale(1.00); }
-            #medinet-auto-unified .mau-flames i:nth-child(4) { left: 27px; height: 36px; transform: rotate(2deg)   scale(1.06); }
-            #medinet-auto-unified .mau-flames i:nth-child(5) { left: 35px; height: 29px; transform: rotate(10deg)  scale(.94); }
-            #medinet-auto-unified .mau-flames i:nth-child(6) { left: 43px; height: 22px; transform: rotate(18deg)  scale(.82); }
-            #medinet-auto-unified .mau-flames i:nth-child(7) { left: 50px; height: 15px; transform: rotate(26deg)  scale(.66); }
+            /* Điểm phóng quanh bánh xe */
+            #medinet-auto-unified .mau-flames i:nth-child(1) { --a: 18deg;  --d: 35px; --x:  5px; --y:-10px; --delay:-.03s; }
+            #medinet-auto-unified .mau-flames i:nth-child(2) { --a: 64deg;  --d: 34px; --x: 10px; --y: -5px; --delay:-.17s; }
+            #medinet-auto-unified .mau-flames i:nth-child(3) { --a: 121deg; --d: 35px; --x:  7px; --y:  2px; --delay:-.28s; }
+            #medinet-auto-unified .mau-flames i:nth-child(4) { --a: 181deg; --d: 36px; --x: -4px; --y:  6px; --delay:-.09s; }
+            #medinet-auto-unified .mau-flames i:nth-child(5) { --a: 232deg; --d: 34px; --x:-10px; --y:  2px; --delay:-.22s; }
+            #medinet-auto-unified .mau-flames i:nth-child(6) { --a: 287deg; --d: 35px; --x: -8px; --y: -7px; --delay:-.34s; }
+            #medinet-auto-unified .mau-flames i:nth-child(7) { --a: 334deg; --d: 36px; --x:  2px; --y:-11px; --delay:-.13s; }
 
             #medinet-auto-unified.mau-running .mau-flames {
                 opacity: 1;
+                animation: medinet-inferno-breathe .44s ease-in-out infinite alternate;
             }
 
-            #medinet-auto-unified.mau-running .mau-flames i:nth-child(odd) {
-                animation: medinet-flame-rise .34s ease-in-out infinite alternate;
+            #medinet-auto-unified.mau-running .mau-flames::before {
+                animation:
+                    medinet-inferno-spin .43s linear infinite,
+                    medinet-inferno-pulse .19s ease-in-out infinite alternate;
             }
 
-            #medinet-auto-unified.mau-running .mau-flames i:nth-child(even) {
-                animation: medinet-flame-rise2 .27s ease-in-out infinite alternate-reverse;
+            #medinet-auto-unified.mau-running .mau-flames::after {
+                animation:
+                    medinet-inferno-counter .31s linear infinite,
+                    medinet-inferno-pulse2 .14s ease-in-out infinite alternate-reverse;
             }
 
-            @keyframes medinet-flame-rise {
-                0%   { margin-bottom: 0;    filter: brightness(.90); clip-path: polygon(50% 0,100% 45%,78% 100%,20% 100%,0 48%); }
-                100% { margin-bottom: 7px;  filter: brightness(1.30); clip-path: polygon(50% 0,88% 48%,100% 72%,73% 100%,19% 100%,0 56%,16% 33%); }
+            #medinet-auto-unified.mau-running .mau-flames i {
+                animation: medinet-ember-eject .62s cubic-bezier(.18,.68,.36,1) infinite;
+                animation-delay: var(--delay);
             }
 
-            @keyframes medinet-flame-rise2 {
-                0%   { margin-bottom: 2px; transform: translateX(-1px) scaleY(.82); filter: brightness(1.05); }
-                100% { margin-bottom: 10px; transform: translateX(1px) scaleY(1.18); filter: brightness(1.42); }
+            /* Khi chạy, core + turbine có ánh nóng cam ở điểm "cạ" */
+            #medinet-auto-unified.mau-running .mau-core {
+                box-shadow:
+                    inset 0 0 12px rgba(34,211,238,.18),
+                    0 0 8px rgba(34,211,238,.32),
+                    0 -3px 12px rgba(255,102,0,.16),
+                    0 3px 12px rgba(255,153,0,.12);
             }
 
-            /* Notice v7.39: nhắc LƯU thật rõ, nhưng không che UI Medinet */
+            #medinet-auto-unified.mau-running .mau-shell {
+                box-shadow:
+                    inset 0 0 0 2px rgba(1,7,16,.94),
+                    inset 0 0 10px rgba(34,211,238,.18),
+                    0 0 0 1px rgba(8,145,178,.28),
+                    0 0 10px rgba(34,211,238,.34),
+                    0 0 15px rgba(255,89,0,.18);
+            }
+
+            @keyframes medinet-inferno-spin {
+                to { transform: rotate(360deg) scale(1.035); }
+            }
+
+            @keyframes medinet-inferno-counter {
+                to { transform: rotate(-360deg) scale(.985); }
+            }
+
+            @keyframes medinet-inferno-pulse {
+                0%   { filter: blur(.15px) brightness(.90) drop-shadow(0 0 3px rgba(255,196,0,.82)) drop-shadow(0 0 6px rgba(255,80,0,.60)); }
+                100% { filter: blur(.55px) brightness(1.32) drop-shadow(0 0 5px rgba(255,228,125,1)) drop-shadow(0 0 11px rgba(255,58,0,.90)); }
+            }
+
+            @keyframes medinet-inferno-pulse2 {
+                0%   { opacity: .56; transform: scale(.97); }
+                100% { opacity: 1;    transform: scale(1.05); }
+            }
+
+            @keyframes medinet-inferno-breathe {
+                0%   { filter: drop-shadow(0 0 3px rgba(255,125,0,.34)); }
+                100% { filter: drop-shadow(0 0 8px rgba(255,64,0,.72)); }
+            }
+
+            @keyframes medinet-ember-eject {
+                0% {
+                    opacity: 0;
+                    transform:
+                        rotate(var(--a))
+                        translateY(calc(-1 * var(--d)))
+                        translate(0,0)
+                        scale(.55);
+                }
+                16% { opacity: 1; }
+                58% { opacity: .92; }
+                100% {
+                    opacity: 0;
+                    transform:
+                        rotate(var(--a))
+                        translateY(calc(-1 * var(--d)))
+                        translate(var(--x), var(--y))
+                        scale(.16);
+                }
+            }
+
+            /* Notice v7.40: nhắc LƯU thật rõ, nhưng không che UI Medinet */
             #medinet-auto-notice {
                 right: 94px;
                 bottom: 90px;
@@ -10084,7 +10242,7 @@ async function autoM2KhamLamSang() {
         );
 
         log(
-            '✅ MEDINET AUTO M2-M6 UNIFIED READY'
+            '✅ MEDINET AUTO M2-M6 UNIFIED READY v7.40'
         );
 
         log(
