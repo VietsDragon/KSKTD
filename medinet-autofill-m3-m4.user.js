@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.79
+// @version      7.82
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -1633,112 +1633,20 @@ async function autoM2KhamLamSang() {
             'click',
             async function () {
 
-                if (
-                    button.disabled
-                ) {
+                if (button.disabled) {
                     return;
                 }
 
-
-                button.disabled =
-                    true;
-
-
-                button.innerText =
-                    '⏳ M2...';
-
-                showStatusBar(
-                    'Đang chạy AUTO M2...'
-                );
-
-
-                try {
-
-                    const tabTitle =
-                        getCurrentTabTitleM2();
-
-                    // Dự phòng: trang này dùng route khác
-                    // (dynamicviewer/tabpanel), có thể không có
-                    // h2.hidden-web-title -> dò thêm theo text
-                    // toàn trang
-                    const bodyTextM2 =
-                        norm(
-                            document.body.innerText
-                        );
-
-
-                    // Tab "Tiền sử bệnh nhân dưới 18 tuổi"
-                    // (gồm cả tiền sử bệnh gia đình, bản thân
-                    // và bảng Tiêm chủng - tất cả chung 1 trang,
-                    // h2 không đổi theo mục sidebar)
-                    if (
-                        tabTitle.includes(
-                            'tiền sử bệnh nhân dưới 18 tuổi'
-                        )
-                    ) {
-
-                        await autoM2TienSuDuoi18();
-
-                    } else if (
-                        // Tab "Đánh giá sức khỏe tâm thần"
-                        tabTitle.includes(
-                            'đánh giá sức khỏe tâm thần'
-                        ) ||
-                        bodyTextM2.includes(
-                            'đánh giá sức khỏe tâm thần'
-                        )
-                    ) {
-
-                        await autoM2DanhGiaTamThan();
-
-                    } else if (
-                        // Tab "Thông tin khám" (Khám lâm sàng)
-                        tabTitle.includes(
-                            'thông tin khám bệnh nhân dưới 18 tuổi'
-                        ) ||
-                        bodyTextM2.includes(
-                            'thông tin khám bệnh nhân dưới 18 tuổi'
-                        )
-                    ) {
-
-                        await autoM2KhamLamSang();
-
-                    } else {
-
-                        autoAlert(
-                            '⚠️ AUTO M2 chưa hỗ trợ tab này.\n\n' +
-                            'Tab hiện tại: ' +
-                            (tabTitle || '(không xác định)')
-                        );
-                    }
-
-
-                } catch (e) {
-
-                    console.error(
-                        LOG,
-                        e
-                    );
-
-
-                    autoAlert(
-                        '❌ Lỗi AUTO M2.\n\n' +
-                        'Mở F12 → Console để xem chi tiết.'
-                    );
-
-
-                } finally {
-
-                    button.disabled =
-                        false;
-
-
-                    button.innerText =
-                        '🚀 AUTO M2';
+                // Có cảnh báo: reactor vẫn là AUTO, không bị cảnh báo "chiếm quyền".
+                // Nhấn reactor mở 2 lựa chọn lớn. Nhấn đúng dấu ! vẫn xem cảnh báo ngay.
+                if (hasCurrentCanLamSangWarning()) {
+                    showWarningActionChooser(button);
+                    return;
                 }
+
+                await startUnifiedAutoFromButton(button);
             }
         );
-
 
         document.body.appendChild(
             button
@@ -15760,7 +15668,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
             model
                 ? (
                     `AUTO ${model}` +
-                    (warning ? ' • Có nội dung cần kiểm tra' : '')
+                    (warning ? ' • Bấm để chọn AUTO hoặc xem cảnh báo' : '')
                 )
                 : 'Chưa nhận diện được M2-M6. Hãy mở từ trang danh sách mẫu.';
     }
@@ -15933,6 +15841,234 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
     }
 
 
+
+    function ensureUnifiedAutoV780Styles() {
+        if (document.getElementById('medinet-auto-v780-style')) return;
+        const style = document.createElement('style');
+        style.id = 'medinet-auto-v780-style';
+        style.textContent = `
+            /* =====================================================
+               v7.80 — WARNING ACTION CHOOSER
+               Isolated addition only. Does not alter completed UIX.
+               ===================================================== */
+            #medinet-auto-dock-panel .mau-choice {
+                display:grid !important;
+                gap:10px !important;
+                min-width:0 !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-note {
+                color:#526575 !important;
+                font-size:12.5px !important;
+                line-height:1.4 !important;
+                font-weight:650 !important;
+                margin:0 1px 2px !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-btn {
+                width:100% !important;
+                min-height:58px !important;
+                display:grid !important;
+                grid-template-columns:38px minmax(0,1fr) !important;
+                gap:10px !important;
+                align-items:center !important;
+                text-align:left !important;
+                padding:10px 12px !important;
+                border-radius:11px !important;
+                border:1px solid #d8e5eb !important;
+                background:#ffffff !important;
+                color:#172033 !important;
+                cursor:pointer !important;
+                box-shadow:0 1px 0 rgba(15,23,42,.025) !important;
+                transition:transform .12s ease,border-color .12s ease,background .12s ease !important;
+                font-family:'Segoe UI',Arial,sans-serif !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-btn:hover {
+                transform:translateY(-1px) !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-btn:active {
+                transform:translateY(0) scale(.99) !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-icon {
+                width:38px !important;
+                height:38px !important;
+                display:flex !important;
+                align-items:center !important;
+                justify-content:center !important;
+                border-radius:10px !important;
+                font-size:19px !important;
+                font-weight:900 !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-copy {
+                min-width:0 !important;
+                display:grid !important;
+                gap:2px !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-title {
+                color:#172033 !important;
+                font-size:14px !important;
+                line-height:1.25 !important;
+                font-weight:900 !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-sub {
+                color:#64748b !important;
+                font-size:12px !important;
+                line-height:1.35 !important;
+                font-weight:650 !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-auto {
+                border-color:#b9dce6 !important;
+                background:linear-gradient(135deg,#f4fcfe,#eef8fb) !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-auto .mau-choice-icon {
+                background:#dff7fc !important;
+                color:#036b83 !important;
+                border:1px solid #b7e7f1 !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-warning {
+                border-color:#efcfab !important;
+                background:linear-gradient(135deg,#fffaf3,#fff7ec) !important;
+            }
+            #medinet-auto-dock-panel .mau-choice-warning .mau-choice-icon {
+                background:#fff0dc !important;
+                color:#a64b0b !important;
+                border:1px solid #f3d2a8 !important;
+            }
+            @media(max-width:640px){
+                #medinet-auto-dock-panel .mau-choice-btn {
+                    min-height:62px !important;
+                    padding:11px !important;
+                }
+                #medinet-auto-dock-panel .mau-choice-title { font-size:14.5px !important; }
+                #medinet-auto-dock-panel .mau-choice-sub { font-size:12.5px !important; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    async function startUnifiedAutoFromButton(button) {
+        if (!button || button.disabled) return;
+
+        const model = getCurrentMedinetModel();
+
+        if (!model) {
+            showToast(
+                '⚠️ Chưa nhận diện được mẫu. Hãy mở hồ sơ từ danh sách M2-M6.',
+                4200
+            );
+            updateUnifiedAutoButton();
+            return;
+        }
+
+        if (isModelListPage()) {
+            showToast(
+                `✓ Đã nhận diện ${model}. Mở hồ sơ cần nhập rồi bấm AUTO.`,
+                3200
+            );
+            return;
+        }
+
+        button.disabled = true;
+        button.classList.add('mau-running');
+
+        unifiedAutoRuntime.running = true;
+        unifiedAutoRuntime.model = model;
+        unifiedAutoRuntime.lastMessage = '';
+        unifiedAutoRuntime.blocked = false;
+        unifiedAutoRuntime.reportShown = false;
+
+        // Chỉ đóng bubble/menu đang mở. Cảnh báo xét nghiệm vẫn được giữ
+        // cho tới khi quay lại danh sách hoặc chuyển sang bệnh nhân khác.
+        closeAutoDockPanel();
+        showRunningSpeechBubble(
+            `⏳ ${model} · Đang tự động điền\nHệ thống đang xử lý. Giữ nguyên trang này đến khi hoàn tất.`
+        );
+
+        let completed = false;
+        try {
+            await runAutoByDetectedModel(model);
+            completed = true;
+        } catch (e) {
+            console.error(LOG, e);
+            unifiedAutoRuntime.lastMessage =
+                `❌ Lỗi AUTO ${model}.\n\nMở F12 → Console để xem chi tiết.`;
+        } finally {
+            unifiedAutoRuntime.running = false;
+            button.disabled = false;
+            button.classList.remove('mau-running');
+            updateUnifiedAutoButton();
+
+            if (
+                completed &&
+                !unifiedAutoRuntime.blocked &&
+                unifiedAutoRuntime.reportShown
+            ) {
+                // Báo cáo xét nghiệm đã tự bật; không ghi đè.
+            } else if (completed && !unifiedAutoRuntime.blocked) {
+                autoAlert(buildUnifiedCompletionMessage(model));
+            } else {
+                autoAlert(
+                    unifiedAutoRuntime.lastMessage ||
+                    `❌ Lỗi AUTO ${model}.`
+                );
+            }
+
+            unifiedAutoRuntime.model = '';
+            unifiedAutoRuntime.lastMessage = '';
+            unifiedAutoRuntime.blocked = false;
+            unifiedAutoRuntime.reportShown = false;
+        }
+    }
+
+    function showWarningActionChooser(button) {
+        ensureUnifiedAutoV780Styles();
+
+        const model = getCurrentMedinetModel() || 'AUTO';
+        const panel = showAutoDockPanel(
+            'Chọn thao tác',
+            '<div class="mau-choice">' +
+                '<div class="mau-choice-note">Ca này đang có cảnh báo xét nghiệm.</div>' +
+                '<button type="button" class="mau-choice-btn mau-choice-auto">' +
+                    '<span class="mau-choice-icon">▶</span>' +
+                    '<span class="mau-choice-copy">' +
+                        `<span class="mau-choice-title">AUTO ${model} · Mục hiện tại</span>` +
+                        '<span class="mau-choice-sub">Tiếp tục AUTO màn hình đang mở.</span>' +
+                    '</span>' +
+                '</button>' +
+                '<button type="button" class="mau-choice-btn mau-choice-warning">' +
+                    '<span class="mau-choice-icon">!</span>' +
+                    '<span class="mau-choice-copy">' +
+                        '<span class="mau-choice-title">Xem cảnh báo xét nghiệm</span>' +
+                        '<span class="mau-choice-sub">Xem lại các chỉ số cần kiểm tra.</span>' +
+                    '</span>' +
+                '</button>' +
+            '</div>',
+            'warn',
+            0
+        );
+
+        if (!panel) return;
+
+        const autoBtn = panel.querySelector('.mau-choice-auto');
+        const warningBtn = panel.querySelector('.mau-choice-warning');
+
+        if (autoBtn) {
+            autoBtn.addEventListener('click', async event => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeAutoDockPanel();
+                await startUnifiedAutoFromButton(button);
+            });
+        }
+
+        if (warningBtn) {
+            warningBtn.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeAutoDockPanel();
+                xemLaiCanhBao();
+            });
+        }
+    }
+
     function createUnifiedAutoButton() {
 
         if (
@@ -15969,6 +16105,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         ensureUnifiedAutoV763Styles();
         ensureUnifiedAutoV764Styles();
         ensureUnifiedAutoV765Styles();
+        ensureUnifiedAutoV780Styles();
 
         const button =
             document.createElement(
@@ -16008,33 +16145,27 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
                 '.mau-warning'
             );
 
-        const stopWarningBubble =
-            function (event) {
-                event.preventDefault();
-                event.stopPropagation();
-            };
-
-        warningButton.addEventListener(
-            'pointerdown',
-            stopWarningBubble
-        );
-
-        warningButton.addEventListener(
-            'touchstart',
-            stopWarningBubble,
-            { passive: false }
-        );
-
-        warningButton.addEventListener(
-            'click',
-            function (event) {
-
-                event.preventDefault();
-                event.stopPropagation();
-
-                xemLaiCanhBao();
-            }
-        );
+        // Dấu ! chỉ là trạng thái trực quan, không phải vùng click riêng.
+        // Mọi cú nhấn trên reactor đều đi qua handler của button bên dưới:
+        // - không có cảnh báo -> AUTO ngay;
+        // - có cảnh báo -> mở menu AUTO / Xem cảnh báo.
+        if (warningButton) {
+            warningButton.style.setProperty(
+                'pointer-events',
+                'none',
+                'important'
+            );
+            warningButton.setAttribute(
+                'aria-hidden',
+                'true'
+            );
+            warningButton.removeAttribute(
+                'role'
+            );
+            warningButton.removeAttribute(
+                'title'
+            );
+        }
 
         button.addEventListener(
             'click',
@@ -16044,10 +16175,10 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
                     return;
                 }
 
-                // Khi có cảnh báo, toàn bộ reactor đỏ trở thành nút XEM LẠI.
-                // Người dùng lớn tuổi không cần nhấn chính xác vào dấu chấm than.
+                // Có cảnh báo: bất kỳ cú nhấn nào trên reactor đều mở menu
+                // chọn AUTO mục hiện tại / Xem cảnh báo.
                 if (hasCurrentCanLamSangWarning()) {
-                    xemLaiCanhBao();
+                    showWarningActionChooser(button);
                     return;
                 }
 
