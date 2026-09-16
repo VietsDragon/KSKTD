@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.82
+// @version      7.83
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -7315,310 +7315,645 @@ async function autoM2KhamLamSang() {
 
 
     // -----------------------------------------------------------
-    // KHOẢNG BÌNH THƯỜNG - theo nguồn Việt Nam (Viện Huyết học -
-    // Truyền máu TW, Vinmec, Bệnh viện Thu Cúc...) + GỢI Ý MÃ
-    // ICD-10 KHI BẤT THƯỜNG.
+    // CLINICAL PATTERN ENGINE v7.83
+    // -----------------------------------------------------------
+    // Không còn map "mỗi chỉ số bất thường = một chẩn đoán".
+    // Engine đọc theo cụm xét nghiệm, tự đối chiếu các chỉ số liên quan
+    // rồi mới tạo nhận định + ICD-10 tham khảo.
     //
-    // Có phân biệt Nam/Nữ ở các chỉ số có khác biệt rõ rệt
-    // (maleMin/maleMax, femaleMin/femaleMax) - nếu không rõ
-    // giới tính sẽ dùng min/max chung (khoảng gộp cả 2 giới).
-    //
-    // ⚠️ CHỈ MANG TÍNH THAM KHẢO CHUNG - khoảng bình thường có
-    // thể khác nhau tuỳ máy xét nghiệm/phòng lab. KHÔNG thay
-    // thế chẩn đoán của bác sĩ. Script chỉ hiện gợi ý, không
-    // tự điền bất cứ đâu.
+    // Nguyên tắc:
+    // - Hb là trục chính để xác định thiếu máu.
+    // - Chỉ số HC (MCV/MCH/MCHC/RDW/RBC/HCT) dùng để phân loại/hỗ trợ.
+    // - WBC phải đọc cùng NEU/LYM/EOS.
+    // - Creatinin/Urê/Protein niệu chỉ phản ánh bất thường thận, không
+    //   tự kết luận suy thận khi chỉ có một lần xét nghiệm.
+    // - LEU/NIT chỉ gợi ý nhiễm khuẩn niệu khi pattern phù hợp.
+    // - Không đề nghị thêm xét nghiệm; chỉ diễn giải dữ liệu hiện có.
     // -----------------------------------------------------------
 
     const CAN_LAM_SANG_REFERENCE = [
-        {
-            column: 'RBC', label: 'Số lượng HC',
-            min: 4.0, max: 5.4,
-            maleMin: 4.2, maleMax: 5.4,
-            femaleMin: 4.0, femaleMax: 4.9,
-            low: { code: 'D64.9', name: 'Thiếu máu chưa xác định' },
-            high: { code: 'D75.1', name: 'Đa hồng cầu thứ phát' }
-        },
-        {
-            column: 'HGB', label: 'Huyết sắc tố',
-            min: 120, max: 160,
-            maleMin: 130, maleMax: 160,
-            femaleMin: 120, femaleMax: 142,
-            low: { code: 'D64.9', name: 'Thiếu máu' }
-        },
-        {
-            column: 'HCT', label: 'Hematocrit',
-            min: 0.37, max: 0.52,
-            maleMin: 0.45, maleMax: 0.52,
-            femaleMin: 0.37, femaleMax: 0.48,
-            low: { code: 'D64.9', name: 'Thiếu máu' },
-            high: { code: 'D75.1', name: 'Đa hồng cầu' }
-        },
-        {
-            column: 'MCV', label: 'MCV',
-            min: 85, max: 95,
-            low: { code: 'D50.9', name: 'Thiếu máu hồng cầu nhỏ (gợi ý thiếu sắt)' },
-            high: { code: 'D53.9', name: 'Thiếu máu hồng cầu to' }
-        },
-        { column: 'MCH', label: 'MCH', min: 28, max: 32 },
+        { column: 'RBC', label: 'Số lượng HC', min: 4.0, max: 5.4, maleMin: 4.2, maleMax: 5.4, femaleMin: 4.0, femaleMax: 4.9 },
+        { column: 'HGB', label: 'Huyết sắc tố', min: 120, max: 160, maleMin: 130, maleMax: 160, femaleMin: 120, femaleMax: 142 },
+        { column: 'HCT', label: 'Hematocrit', min: 0.37, max: 0.52, maleMin: 0.40, maleMax: 0.52, femaleMin: 0.36, femaleMax: 0.48 },
+        { column: 'MCV', label: 'MCV', min: 80, max: 100 },
+        { column: 'MCH', label: 'MCH', min: 27, max: 33 },
         { column: 'MCHC', label: 'MCHC', min: 320, max: 360 },
         { column: 'RDW', label: 'RDW', min: 10, max: 16.5 },
-        {
-            column: 'WBC', label: 'Số lượng bạch cầu',
-            min: 4.0, max: 10.0,
-            low: { code: 'D72.8', name: 'Giảm bạch cầu' },
-            high: { code: 'D72.8', name: 'Tăng bạch cầu' }
-        },
-        { column: 'NEU#', label: 'BC trung tính', min: 1.7, max: 7.0 },
+        { column: 'WBC', label: 'Số lượng bạch cầu', min: 4.0, max: 10.0 },
+        { column: 'NEU#', label: 'BC trung tính', min: 1.5, max: 7.5 },
         { column: 'LYM#', label: 'BC lympho', min: 1.0, max: 4.0 },
         { column: 'MONO#', label: 'BC đơn nhân', min: 0.1, max: 1.0 },
-        {
-            column: 'EOS#', label: 'BC ái toan',
-            min: 0.0, max: 0.5,
-            high: { code: 'D72.1', name: 'Tăng bạch cầu ái toan' }
-        },
+        { column: 'EOS#', label: 'BC ái toan', min: 0.0, max: 0.5 },
         { column: 'BASO#', label: 'BC ái kiềm', min: 0.0, max: 0.1 },
-        {
-            column: 'PLT', label: 'Tiểu cầu',
-            min: 150, max: 400,
-            low: { code: 'D69.6', name: 'Giảm tiểu cầu' },
-            high: { code: 'D75.2', name: 'Tăng tiểu cầu' }
-        },
-        {
-            column: 'Glucose', label: 'Đường máu',
-            min: 3.9, max: 6.4,
-            low: { code: 'E16.2', name: 'Hạ đường huyết' },
-            high: { code: 'R73.9', name: 'Tăng đường huyết - theo dõi đái tháo đường' }
-        },
-        {
-            column: 'Ure', label: 'Urê',
-            min: 2.5, max: 7.5,
-            high: { code: 'R79.8', name: 'Tăng ure máu' }
-        },
-        {
-            column: 'Creatinine', label: 'Creatinin',
-            min: 44, max: 106,
-            maleMin: 62, maleMax: 106,
-            femaleMin: 44, femaleMax: 80,
-            high: { code: 'N19', name: 'Suy giảm chức năng thận' }
-        },
-        {
-            column: 'AST', label: 'ASAT(GOT)',
-            min: 0, max: 50,
-            maleMin: 0, maleMax: 50,
-            femaleMin: 0, femaleMax: 35,
-            high: { code: 'R74.0', name: 'Tăng men gan' }
-        },
-        {
-            column: 'ALT', label: 'ALAT(GPT)',
-            min: 0, max: 50,
-            maleMin: 0, maleMax: 50,
-            femaleMin: 0, femaleMax: 35,
-            high: { code: 'R74.0', name: 'Tăng men gan' }
-        },
+        { column: 'PLT', label: 'Tiểu cầu', min: 150, max: 450 },
+        { column: 'Glucose', label: 'Đường máu', min: 3.9, max: 6.4 },
+        { column: 'Ure', label: 'Urê', min: 2.5, max: 7.5 },
+        { column: 'Creatinine', label: 'Creatinin', min: 44, max: 106, maleMin: 62, maleMax: 106, femaleMin: 44, femaleMax: 80 },
+        { column: 'AST', label: 'ASAT(GOT)', min: 0, max: 50, maleMin: 0, maleMax: 50, femaleMin: 0, femaleMax: 35 },
+        { column: 'ALT', label: 'ALAT(GPT)', min: 0, max: 50, maleMin: 0, maleMax: 50, femaleMin: 0, femaleMax: 35 },
         { column: 'S.G', label: 'Tỉ trọng nước tiểu', min: 1.005, max: 1.030 },
         { column: 'pH', label: 'pH nước tiểu', min: 5.0, max: 8.0 },
-        {
-            column: 'LEU', label: 'Bạch cầu niệu',
-            min: 0, max: 0,
-            high: { code: 'N39.0', name: 'Nhiễm khuẩn đường tiết niệu' }
-        },
-        {
-            column: 'BLD', label: 'Hồng cầu niệu',
-            min: 0, max: 0,
-            high: { code: 'R31', name: 'Tiểu máu' }
-        },
-        {
-            column: 'PRO', label: 'Protein niệu',
-            min: 0, max: 0,
-            high: { code: 'R80', name: 'Protein niệu' }
-        },
-        {
-            column: 'GLU', label: 'Glucose niệu',
-            min: 0, max: 0,
-            high: { code: 'R81', name: 'Đường niệu' }
-        },
-        {
-            column: 'KET', label: 'Thể cetonic niệu',
-            min: 0, max: 0,
-            high: { code: 'R82.4', name: 'Ceton niệu' }
-        },
-        {
-            column: 'BIL', label: 'Bilirubin niệu',
-            min: 0, max: 0,
-            high: { code: 'R82.2', name: 'Bilirubin niệu' }
-        },
-        {
-            column: 'URO', label: 'Urobilinogen niệu',
-            min: 0, max: 17,
-            high: { code: 'R82.2', name: 'Tăng urobilinogen niệu' }
-        }
+        { column: 'LEU', label: 'Bạch cầu niệu', min: 0, max: 0 },
+        { column: 'BLD', label: 'Hồng cầu niệu', min: 0, max: 0 },
+        { column: 'PRO', label: 'Protein niệu', min: 0, max: 0 },
+        { column: 'GLU', label: 'Glucose niệu', min: 0, max: 0 },
+        { column: 'KET', label: 'Thể cetonic niệu', min: 0, max: 0 },
+        { column: 'BIL', label: 'Bilirubin niệu', min: 0, max: 0 },
+        { column: 'URO', label: 'Urobilinogen niệu', min: 0, max: 17 }
     ];
 
+    const REF_BY_COLUMN = new Map(
+        CAN_LAM_SANG_REFERENCE.map(ref => [ref.column, ref])
+    );
 
-    // Lấy đúng khoảng (nam/nữ) theo giới tính, hoặc khoảng
-    // chung nếu chỉ số không phân biệt giới hoặc không rõ giới
-    function getRefRange(
-        ref,
-        gioiTinhRaw
-    ) {
+    function getRefRange(ref, gioiTinhRaw) {
+        if (!ref) return { min: undefined, max: undefined };
 
-        if (
-            gioiTinhRaw === 'M' &&
-            ref.maleMin !== undefined
-        ) {
-
-            return {
-                min: ref.maleMin,
-                max: ref.maleMax
-            };
+        if (gioiTinhRaw === 'M' && ref.maleMin !== undefined) {
+            return { min: ref.maleMin, max: ref.maleMax };
         }
 
-        if (
-            gioiTinhRaw === 'F' &&
-            ref.femaleMin !== undefined
-        ) {
-
-            return {
-                min: ref.femaleMin,
-                max: ref.femaleMax
-            };
+        if (gioiTinhRaw === 'F' && ref.femaleMin !== undefined) {
+            return { min: ref.femaleMin, max: ref.femaleMax };
         }
 
-        return {
-            min: ref.min,
-            max: ref.max
-        };
+        return { min: ref.min, max: ref.max };
     }
 
-
     function parseNumberLoose(val) {
+        if (val === undefined || val === null) return NaN;
 
-        if (
-            val === undefined ||
-            val === null
-        ) {
-
-            return NaN;
-        }
-
-        const s =
-            String(val)
-                .trim()
-                .replace(
-                    ',',
-                    '.'
-                );
-
-        if (s === '') {
-
-            return NaN;
-        }
+        const s = String(val).trim().replace(',', '.');
+        if (s === '') return NaN;
 
         return parseFloat(s);
     }
 
+    function getClinicalLab(data, column, gioiTinhRaw) {
+        const rawOriginal = getDataValueByColumn(data, column);
+        const raw = column === 'S.G'
+            ? normalizeSpecificGravity(rawOriginal)
+            : rawOriginal;
 
-    function checkAbnormalResults(
-        data
-    ) {
+        const n = parseNumberLoose(raw);
+        const ref = REF_BY_COLUMN.get(column);
+        const range = getRefRange(ref, gioiTinhRaw);
 
+        return {
+            column,
+            raw,
+            n,
+            valid: Number.isFinite(n),
+            label: ref?.label || column,
+            min: range.min,
+            max: range.max,
+            low: Number.isFinite(n) && range.min !== undefined && n < range.min,
+            high: Number.isFinite(n) && range.max !== undefined && n > range.max,
+            display: Number.isFinite(n) ? formatRoundedDisplay(raw) : ''
+        };
+    }
+
+    function isPositiveQualitativeRaw(v) {
+        if (v === undefined || v === null) return false;
+        const s = norm(String(v));
+        if (!s || s === '0' || s === 'am tinh' || s === 'binh thuong' || s === 'negative') return false;
+        return true;
+    }
+
+    function makeEvidence(items) {
+        return items
+            .filter(Boolean)
+            .map(x => `${x.label} ${x.display}`)
+            .join(' · ');
+    }
+
+    function pushPatternFinding(findings, seen, finding) {
+        const key = finding.key || `${finding.code || ''}|${finding.label || ''}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        findings.push(finding);
+    }
+
+    function checkAbnormalResults(data) {
         const gioiTinhRaw =
-            (
-                getDataValueByColumn(
-                    data,
-                    'Giới tính'
-                ) || ''
-            ).toString().trim().toUpperCase();
+            (getDataValueByColumn(data, 'Giới tính') || '')
+                .toString()
+                .trim()
+                .toUpperCase();
 
-        const findings =
-            [];
+        const findings = [];
+        const seen = new Set();
 
-        for (
-            const ref of CAN_LAM_SANG_REFERENCE
-        ) {
+        const L = {};
+        for (const ref of CAN_LAM_SANG_REFERENCE) {
+            L[ref.column] = getClinicalLab(data, ref.column, gioiTinhRaw);
+        }
 
-            const rawOriginal =
-                getDataValueByColumn(
-                    data,
-                    ref.column
-                );
+        const nitRaw = getDataValueByColumn(data, 'NIT') ?? data['NIT'];
+        const nitPositive = isPositiveQualitativeRaw(nitRaw);
 
-            const raw =
-                ref.column === 'S.G'
-                    ? normalizeSpecificGravity(
-                        rawOriginal
-                    )
-                    : rawOriginal;
+        // =====================================================
+        // 1. HỒNG CẦU / THIẾU MÁU
+        // =====================================================
+        const hb = L.HGB;
+        const hct = L.HCT;
+        const rbc = L.RBC;
+        const mcv = L.MCV;
+        const mch = L.MCH;
+        const mchc = L.MCHC;
+        const rdw = L.RDW;
 
-            const n =
-                parseNumberLoose(
-                    raw
-                );
+        if (hb?.valid && hb.low) {
+            let morphology = 'đẳng bào';
+            if (mcv?.valid && mcv.n < 80) morphology = 'hồng cầu nhỏ';
+            else if (mcv?.valid && mcv.n > 100) morphology = 'hồng cầu to';
 
-            if (
-                isNaN(n)
-            ) {
+            const chromia =
+                (mch?.valid && mch.low) || (mchc?.valid && mchc.low)
+                    ? ', nhược sắc'
+                    : '';
 
-                continue;
-            }
+            const label = `Thiếu máu ${morphology}${chromia}`;
 
-            const range =
-                getRefRange(
-                    ref,
-                    gioiTinhRaw
-                );
+            pushPatternFinding(findings, seen, {
+                key: 'anemia',
+                label,
+                value: `Hb ${hb.display}`,
+                direction: 'thấp',
+                rangeText: makeEvidence([
+                    hb,
+                    mcv?.valid ? mcv : null,
+                    mch?.valid ? mch : null,
+                    mchc?.valid ? mchc : null,
+                    rdw?.valid ? rdw : null
+                ]),
+                code: 'D64.9',
+                name: 'Thiếu máu, không xác định'
+            });
+        } else {
+            const redCellMorphologyAbnormal =
+                (mcv?.valid && (mcv.low || mcv.high)) ||
+                (mch?.valid && (mch.low || mch.high)) ||
+                (mchc?.valid && (mchc.low || mchc.high)) ||
+                (rdw?.valid && (rdw.low || rdw.high)) ||
+                (rbc?.valid && rbc.low) ||
+                (hct?.valid && hct.low);
 
-            const rangeText =
-                `${range.min}-${range.max}`;
+            if (redCellMorphologyAbnormal) {
+                let label = 'Bất thường chỉ số hồng cầu';
+                if (mcv?.valid && mcv.n < 80) label = 'Hồng cầu nhỏ, chưa có thiếu máu theo Hb';
+                else if (mcv?.valid && mcv.n > 100) label = 'Hồng cầu to, chưa có thiếu máu theo Hb';
+                else if ((mch?.valid && mch.low) || (mchc?.valid && mchc.low)) {
+                    label = 'Nhược sắc, chưa có thiếu máu theo Hb';
+                }
 
-            if (
-                range.min !== undefined &&
-                n < range.min &&
-                ref.low
-            ) {
-
-                findings.push({
-                    label: ref.label,
-                    value: formatRoundedDisplay(raw),
-                    direction: 'thấp',
-                    rangeText,
-                    code: ref.low.code,
-                    name: ref.low.name
-                });
-
-            } else if (
-                range.max !== undefined &&
-                n > range.max &&
-                ref.high
-            ) {
-
-                findings.push({
-                    label: ref.label,
-                    value: formatRoundedDisplay(raw),
-                    direction: 'cao',
-                    rangeText,
-                    code: ref.high.code,
-                    name: ref.high.name
+                pushPatternFinding(findings, seen, {
+                    key: 'rbc-morphology',
+                    label,
+                    value: hb?.valid ? `Hb ${hb.display}` : 'Xem chỉ số HC',
+                    direction: null,
+                    rangeText: makeEvidence([
+                        rbc?.valid ? rbc : null,
+                        hb?.valid ? hb : null,
+                        hct?.valid ? hct : null,
+                        mcv?.valid ? mcv : null,
+                        mch?.valid ? mch : null,
+                        mchc?.valid ? mchc : null,
+                        rdw?.valid ? rdw : null
+                    ]),
+                    code: 'R71.8',
+                    name: 'Bất thường khác của hồng cầu'
                 });
             }
         }
 
-        // Nitrit - xử lý riêng vì là định tính (Âm/Dương tính)
-        const nit =
-            (data['NIT'] || '').toString().trim();
+        const erythrocytosisPattern =
+            (hb?.valid && hb.high) &&
+            ((hct?.valid && hct.high) || (rbc?.valid && rbc.high));
 
-        if (
-            nit !== '' &&
-            nit !== '0'
-        ) {
+        if (erythrocytosisPattern) {
+            pushPatternFinding(findings, seen, {
+                key: 'erythrocytosis',
+                label: 'Tăng hồng cầu / tăng Hb-Hct',
+                value: `Hb ${hb.display}`,
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    hb,
+                    hct?.valid ? hct : null,
+                    rbc?.valid ? rbc : null
+                ]),
+                code: 'D75.1',
+                name: 'Tăng hồng cầu (erythrocytosis)'
+            });
+        }
 
-            findings.push({
-                label: 'Nitrit',
-                value: 'Dương tính',
+        // =====================================================
+        // 2. BẠCH CẦU
+        // =====================================================
+        const wbc = L.WBC;
+        const neu = L['NEU#'];
+        const lym = L['LYM#'];
+        const mono = L['MONO#'];
+        const eos = L['EOS#'];
+        const baso = L['BASO#'];
+
+        if (neu?.valid && neu.n < 1.5) {
+            pushPatternFinding(findings, seen, {
+                key: 'neutropenia',
+                label: 'Giảm bạch cầu trung tính',
+                value: `NEU# ${neu.display}`,
+                direction: 'thấp',
+                rangeText: makeEvidence([wbc?.valid ? wbc : null, neu]),
+                code: 'D70',
+                name: 'Giảm bạch cầu trung tính'
+            });
+        }
+
+        if (wbc?.valid && wbc.low) {
+            pushPatternFinding(findings, seen, {
+                key: 'leukopenia',
+                label: 'Giảm bạch cầu',
+                value: `WBC ${wbc.display}`,
+                direction: 'thấp',
+                rangeText: makeEvidence([
+                    wbc,
+                    neu?.valid ? neu : null,
+                    lym?.valid ? lym : null
+                ]),
+                code: 'D72.8',
+                name: 'Rối loạn bạch cầu khác xác định'
+            });
+        }
+
+        if (wbc?.valid && wbc.high) {
+            let label = 'Tăng bạch cầu';
+            if (neu?.valid && neu.high) label = 'Tăng bạch cầu ưu thế trung tính';
+            else if (lym?.valid && lym.high) label = 'Tăng bạch cầu kèm tăng lympho';
+
+            pushPatternFinding(findings, seen, {
+                key: 'leukocytosis',
+                label,
+                value: `WBC ${wbc.display}`,
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    wbc,
+                    neu?.valid ? neu : null,
+                    lym?.valid ? lym : null,
+                    mono?.valid ? mono : null
+                ]),
+                code: 'D72.8',
+                name: 'Tăng bạch cầu / rối loạn bạch cầu khác xác định'
+            });
+        } else {
+            // Bất thường dòng bạch cầu đơn độc khi tổng WBC không tăng.
+            if (lym?.valid && lym.high) {
+                pushPatternFinding(findings, seen, {
+                    key: 'lymphocytosis',
+                    label: 'Tăng lympho tuyệt đối',
+                    value: `LYM# ${lym.display}`,
+                    direction: 'cao',
+                    rangeText: makeEvidence([wbc?.valid ? wbc : null, lym]),
+                    code: 'D72.8',
+                    name: 'Lymphocytosis'
+                });
+            }
+
+            if (mono?.valid && mono.high) {
+                pushPatternFinding(findings, seen, {
+                    key: 'monocytosis',
+                    label: 'Tăng bạch cầu đơn nhân',
+                    value: `MONO# ${mono.display}`,
+                    direction: 'cao',
+                    rangeText: makeEvidence([wbc?.valid ? wbc : null, mono]),
+                    code: 'D72.8',
+                    name: 'Monocytosis'
+                });
+            }
+        }
+
+        if (eos?.valid && eos.high) {
+            pushPatternFinding(findings, seen, {
+                key: 'eosinophilia',
+                label: 'Tăng bạch cầu ái toan',
+                value: `EOS# ${eos.display}`,
+                direction: 'cao',
+                rangeText: makeEvidence([wbc?.valid ? wbc : null, eos]),
+                code: 'D72.1',
+                name: 'Tăng bạch cầu ái toan'
+            });
+        }
+
+        if (baso?.valid && baso.high) {
+            pushPatternFinding(findings, seen, {
+                key: 'basophilia',
+                label: 'Tăng bạch cầu ái kiềm',
+                value: `BASO# ${baso.display}`,
+                direction: 'cao',
+                rangeText: makeEvidence([wbc?.valid ? wbc : null, baso]),
+                code: 'D75.8',
+                name: 'Bệnh khác xác định của máu và cơ quan tạo máu'
+            });
+        }
+
+        // =====================================================
+        // 3. TIỂU CẦU
+        // =====================================================
+        const plt = L.PLT;
+
+        if (plt?.valid && plt.low) {
+            pushPatternFinding(findings, seen, {
+                key: 'thrombocytopenia',
+                label: 'Giảm tiểu cầu',
+                value: `PLT ${plt.display}`,
+                direction: 'thấp',
+                rangeText: `Tham chiếu ${plt.min}-${plt.max}`,
+                code: 'D69.6',
+                name: 'Giảm tiểu cầu, không xác định'
+            });
+        } else if (plt?.valid && plt.high) {
+            pushPatternFinding(findings, seen, {
+                key: 'thrombocytosis',
+                label: 'Tăng tiểu cầu',
+                value: `PLT ${plt.display}`,
+                direction: 'cao',
+                rangeText: `Tham chiếu ${plt.min}-${plt.max}`,
+                code: 'D75.9',
+                name: 'Bệnh của máu và cơ quan tạo máu, không xác định'
+            });
+        }
+
+        // =====================================================
+        // 4. GLUCOSE
+        // =====================================================
+        const glucose = L.Glucose;
+        const urineGlu = L.GLU;
+        const ket = L.KET;
+
+        if (glucose?.valid && glucose.low) {
+            pushPatternFinding(findings, seen, {
+                key: 'hypoglycemia',
+                label: 'Hạ glucose máu',
+                value: glucose.display,
+                direction: 'thấp',
+                rangeText: `Tham chiếu ${glucose.min}-${glucose.max}`,
+                code: 'E16.2',
+                name: 'Hạ glucose máu, không xác định'
+            });
+        }
+
+        if (glucose?.valid && glucose.high) {
+            let label = 'Tăng glucose máu';
+            if (urineGlu?.valid && urineGlu.high && ket?.valid && ket.high) {
+                label = 'Tăng glucose máu kèm glucose và ceton niệu';
+            } else if (urineGlu?.valid && urineGlu.high) {
+                label = 'Tăng glucose máu kèm glucose niệu';
+            }
+
+            pushPatternFinding(findings, seen, {
+                key: 'hyperglycemia',
+                label,
+                value: glucose.display,
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    glucose,
+                    urineGlu?.valid && urineGlu.high ? urineGlu : null,
+                    ket?.valid && ket.high ? ket : null
+                ]),
+                code: 'R73.9',
+                name: 'Tăng glucose máu, không xác định'
+            });
+        }
+
+        // =====================================================
+        // 5. THẬN / CHUYỂN HÓA NITƠ
+        // =====================================================
+        const ure = L.Ure;
+        const crea = L.Creatinine;
+        const pro = L.PRO;
+
+        if (crea?.valid && crea.high) {
+            const label =
+                ure?.valid && ure.high
+                    ? 'Tăng creatinin kèm tăng urê'
+                    : 'Tăng creatinin máu';
+
+            pushPatternFinding(findings, seen, {
+                key: 'renal-function',
+                label,
+                value: `Creatinin ${crea.display}`,
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    crea,
+                    ure?.valid ? ure : null,
+                    pro?.valid && pro.high ? pro : null
+                ]),
+                code: 'R94.4',
+                name: 'Kết quả bất thường của thăm dò chức năng thận'
+            });
+        } else if (ure?.valid && ure.high) {
+            pushPatternFinding(findings, seen, {
+                key: 'azotemia',
+                label: 'Tăng urê máu',
+                value: ure.display,
+                direction: 'cao',
+                rangeText: makeEvidence([ure, crea?.valid ? crea : null]),
+                code: 'R79.8',
+                name: 'Bất thường xác định khác của hóa sinh máu'
+            });
+        }
+
+        // =====================================================
+        // 6. MEN GAN
+        // =====================================================
+        const ast = L.AST;
+        const alt = L.ALT;
+
+        if ((ast?.valid && ast.high) || (alt?.valid && alt.high)) {
+            let label = 'Tăng men gan';
+            if (ast?.valid && ast.high && !(alt?.valid && alt.high)) label = 'Tăng AST';
+            if (alt?.valid && alt.high && !(ast?.valid && ast.high)) label = 'Tăng ALT';
+
+            pushPatternFinding(findings, seen, {
+                key: 'transaminase',
+                label,
+                value:
+                    ast?.valid && alt?.valid
+                        ? `AST ${ast.display} · ALT ${alt.display}`
+                        : (ast?.valid ? `AST ${ast.display}` : `ALT ${alt.display}`),
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    ast?.valid ? ast : null,
+                    alt?.valid ? alt : null
+                ]),
+                code: 'R74.0',
+                name: 'Tăng transaminase và LDH'
+            });
+        }
+
+        // =====================================================
+        // 7. NƯỚC TIỂU - đọc theo pattern
+        // =====================================================
+        const leu = L.LEU;
+        const bld = L.BLD;
+        const bil = L.BIL;
+        const uro = L.URO;
+
+        const leuPositive = leu?.valid && leu.high;
+        const bldPositive = bld?.valid && bld.high;
+        const proPositive = pro?.valid && pro.high;
+        const gluPositive = urineGlu?.valid && urineGlu.high;
+        const ketPositive = ket?.valid && ket.high;
+        const bilPositive = bil?.valid && bil.high;
+        const uroHigh = uro?.valid && uro.high;
+
+        if (nitPositive && leuPositive) {
+            pushPatternFinding(findings, seen, {
+                key: 'uti-pattern',
+                label: 'Bạch cầu niệu kèm nitrit dương tính',
+                value: 'Pattern gợi ý nhiễm khuẩn niệu',
                 direction: null,
-                rangeText: 'Âm tính',
+                rangeText: makeEvidence([
+                    leu,
+                    bldPositive ? bld : null
+                ]) + ' · Nitrit dương tính',
                 code: 'N39.0',
-                name: 'Nhiễm khuẩn đường tiết niệu'
+                name: 'Nhiễm khuẩn đường tiết niệu, vị trí không xác định'
+            });
+        } else {
+            if (leuPositive) {
+                pushPatternFinding(findings, seen, {
+                    key: 'pyuria',
+                    label: 'Bạch cầu niệu',
+                    value: leu.display,
+                    direction: 'cao',
+                    rangeText: nitPositive ? 'Nitrit dương tính' : 'Nitrit không dương tính',
+                    code: 'R82.9',
+                    name: 'Bất thường nước tiểu, không xác định'
+                });
+            }
+
+            if (nitPositive) {
+                pushPatternFinding(findings, seen, {
+                    key: 'nitrite-positive',
+                    label: 'Nitrit niệu dương tính',
+                    value: 'Dương tính',
+                    direction: null,
+                    rangeText: leuPositive ? `Bạch cầu niệu ${leu.display}` : 'Không kèm bạch cầu niệu tăng',
+                    code: 'R82.9',
+                    name: 'Bất thường nước tiểu, không xác định'
+                });
+            }
+        }
+
+        if (bldPositive) {
+            pushPatternFinding(findings, seen, {
+                key: 'hematuria',
+                label: 'Hồng cầu niệu / tiểu máu',
+                value: bld.display,
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    bld,
+                    proPositive ? pro : null,
+                    leuPositive ? leu : null
+                ]),
+                code: 'R31',
+                name: 'Tiểu máu, không xác định'
+            });
+        }
+
+        if (proPositive) {
+            pushPatternFinding(findings, seen, {
+                key: 'proteinuria',
+                label:
+                    crea?.valid && crea.high
+                        ? 'Protein niệu kèm creatinin tăng'
+                        : 'Protein niệu',
+                value: pro.display,
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    pro,
+                    crea?.valid ? crea : null
+                ]),
+                code: 'R80',
+                name: 'Protein niệu'
+            });
+        }
+
+        if (gluPositive && !(glucose?.valid && glucose.high)) {
+            pushPatternFinding(findings, seen, {
+                key: 'glycosuria',
+                label: 'Glucose niệu',
+                value: urineGlu.display,
+                direction: 'cao',
+                rangeText: glucose?.valid ? `Glucose máu ${glucose.display}` : 'Không có glucose máu để đối chiếu',
+                code: 'R81',
+                name: 'Glucose niệu'
+            });
+        }
+
+        if (ketPositive && !(glucose?.valid && glucose.high)) {
+            pushPatternFinding(findings, seen, {
+                key: 'ketonuria',
+                label: 'Ceton niệu',
+                value: ket.display,
+                direction: 'cao',
+                rangeText: glucose?.valid ? `Glucose máu ${glucose.display}` : 'Không có glucose máu để đối chiếu',
+                code: 'R82.4',
+                name: 'Ceton niệu'
+            });
+        }
+
+        if (bilPositive || uroHigh) {
+            pushPatternFinding(findings, seen, {
+                key: 'bile-pigment-urine',
+                label:
+                    bilPositive && uroHigh
+                        ? 'Bilirubin niệu kèm urobilinogen tăng'
+                        : (bilPositive ? 'Bilirubin niệu' : 'Urobilinogen niệu tăng'),
+                value:
+                    bilPositive && uroHigh
+                        ? `BIL ${bil.display} · URO ${uro.display}`
+                        : (bilPositive ? bil.display : uro.display),
+                direction: 'cao',
+                rangeText: makeEvidence([
+                    bilPositive ? bil : null,
+                    uroHigh ? uro : null,
+                    ast?.valid ? ast : null,
+                    alt?.valid ? alt : null
+                ]),
+                code: 'R82.2',
+                name: 'Bilirubin niệu'
+            });
+        }
+
+        // =====================================================
+        // 8. TỈ TRỌNG / pH - chỉ cảnh báo mức bất thường xét nghiệm,
+        //    không suy diễn bệnh cụ thể.
+        // =====================================================
+        const sg = L['S.G'];
+        const ph = L.pH;
+
+        if (sg?.valid && (sg.low || sg.high)) {
+            pushPatternFinding(findings, seen, {
+                key: 'specific-gravity',
+                label: sg.low ? 'Tỉ trọng nước tiểu thấp' : 'Tỉ trọng nước tiểu cao',
+                value: sg.display,
+                direction: sg.low ? 'thấp' : 'cao',
+                rangeText: `Tham chiếu ${sg.min}-${sg.max}`,
+                code: 'R82.9',
+                name: 'Bất thường nước tiểu, không xác định'
+            });
+        }
+
+        if (ph?.valid && (ph.low || ph.high)) {
+            pushPatternFinding(findings, seen, {
+                key: 'urine-ph',
+                label: ph.low ? 'pH nước tiểu thấp' : 'pH nước tiểu cao',
+                value: ph.display,
+                direction: ph.low ? 'thấp' : 'cao',
+                rangeText: `Tham chiếu ${ph.min}-${ph.max}`,
+                code: 'R82.9',
+                name: 'Bất thường nước tiểu, không xác định'
             });
         }
 
@@ -8025,7 +8360,7 @@ async function autoM2KhamLamSang() {
                     '<div class="xai-finding-main">' +
                         `<div class="xai-finding-name">${f.label || ''}</div>` +
                         `<div class="xai-finding-value">${f.value ?? ''}</div>` +
-                        `<div class="xai-finding-ref">Tham chiếu: ${ref}</div>` +
+                        `<div class="xai-finding-ref">${ref}</div>` +
                         `<div class="xai-finding-note"><span class="xai-icd-label">ICD-10 tham khảo:</span><span class="xai-icd-value"><b>${code}</b>${name ? `<em> · ${name}</em>` : ''}</span></div>` +
                     '</div>' +
                 '</div>'
