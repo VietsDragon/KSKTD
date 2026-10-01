@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.86
+// @version      7.98
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -2341,7 +2341,28 @@ async function autoM2KhamLamSang() {
     // nhận bệnh nhân, cảnh báo kết quả bất thường)
     // =========================================================
 
+    function ensureConsistentModalSkin() {
+        if(document.getElementById('medinet-modal-consistent-skin'))return;
+        const style=document.createElement('style');
+        style.id='medinet-modal-consistent-skin';
+        style.textContent=`
+            .mnm-overlay {background:rgba(24,48,75,.28)!important;backdrop-filter:blur(3px)!important;font-family:'Segoe UI',Arial,sans-serif!important}
+            .mnm-overlay .mnm-box {background:#fff!important;color:#263952!important;border:1px solid #c9dfed!important;border-radius:14px!important;box-shadow:0 16px 45px rgba(24,48,75,.2)!important;max-width:calc(100vw - 28px)!important}
+            .mnm-overlay .mnm-header {position:relative!important;background:#f4faff!important;color:#24435e!important;border-bottom:1px solid #dce9f2!important;padding:16px 20px!important;font:700 15px/1.45 'Segoe UI',Arial,sans-serif!important}
+            .mnm-overlay .mnm-header::before {display:none!important}
+            .mnm-overlay .mnm-body {background:#fff!important;color:#36516b!important;padding:18px 20px!important;font:13px/1.6 'Segoe UI',Arial,sans-serif!important}
+            .mnm-overlay .mnm-footer {background:#f8fbfe!important;border-top:1px solid #e1ebf2!important;padding:12px 20px!important;gap:9px!important}
+            .mnm-overlay .mnm-btn {border-radius:8px!important;padding:9px 15px!important;font:700 12px/1.4 'Segoe UI',Arial,sans-serif!important;box-shadow:none!important}
+            .mnm-overlay .mnm-btn-primary {background:#1687c4!important;color:#fff!important;border:1px solid #1687c4!important}
+            .mnm-overlay .mnm-btn-secondary {background:#f5faff!important;color:#23618b!important;border:1px solid #c9deeb!important}
+            .mnm-overlay .mnm-btn:focus-visible {outline:2px solid #1687c4!important;outline-offset:3px!important}
+            .mnm-overlay .mnm-body input,.mnm-overlay .mnm-body textarea {background:#fff!important;color:#263952!important;border:1px solid #cfdee9!important;border-radius:8px!important}
+        `;
+        document.head.appendChild(style);
+    }
+
     function ensureModalStyles() {
+        ensureConsistentModalSkin();
 
         if (
             document.getElementById(
@@ -3623,64 +3644,7 @@ async function autoM2KhamLamSang() {
 
     // Dựng HTML danh sách kết quả bất thường (dùng chung cho
     // cảnh báo lúc điền xong và nút "Xem lại cảnh báo")
-    function renderFindingsHtml(
-        findings
-    ) {
-
-        if (
-            !findings.length
-        ) {
-
-            return (
-                '<div style="color:#15803d;font-weight:600;">' +
-                '✓ Không có kết quả bất thường.</div>'
-            );
-        }
-
-        const rows =
-            findings.map(
-                f => {
-
-                    const isThap =
-                        f.direction === 'thấp';
-
-                    const badgeClass =
-                        isThap
-                            ? 'mnm-badge-thap'
-                            : 'mnm-badge-cao';
-
-                    const numberClass =
-                        isThap
-                            ? 'mnm-finding-number-thap'
-                            : 'mnm-finding-number-cao';
-
-                    const badgeText =
-                        f.direction
-                            ? f.direction.toUpperCase()
-                            : 'XEM';
-
-                    return (
-                        '<div class="mnm-finding-row">' +
-                        `<span class="mnm-badge ${badgeClass}">${badgeText}</span>` +
-                        '<div class="mnm-finding-main">' +
-                        `<div class="mnm-finding-label">${f.label}</div>` +
-                        `<div class="mnm-finding-number ${numberClass}">${f.value}</div>` +
-                        `<div class="mnm-finding-range">Mức tham chiếu: ${f.rangeText}</div>` +
-                        `<div class="mnm-finding-icd"><span>Mã tham khảo</span><b>${f.code}</b><span>${f.name}</span></div>` +
-                        '</div>' +
-                        '</div>'
-                    );
-                }
-            ).join(
-                ''
-            );
-
-        return (
-            rows +
-            '<div class="mnm-note">⚠️ Các gợi ý trên chỉ để tham khảo và không thay thế đánh giá của bác sĩ.</div>'
-        );
-    }
-
+    function renderFindingsHtml(findings) { return renderInspectorFindingsHtml(findings); }
 
     // =========================================================
     // CLICK ĐẦY ĐỦ CHUỖI SỰ KIỆN (cho DevExtreme)
@@ -7314,315 +7278,658 @@ async function autoM2KhamLamSang() {
     }
 
 
-    // -----------------------------------------------------------
-    // KHOẢNG BÌNH THƯỜNG - theo nguồn Việt Nam (Viện Huyết học -
-    // Truyền máu TW, Vinmec, Bệnh viện Thu Cúc...) + GỢI Ý MÃ
-    // ICD-10 KHI BẤT THƯỜNG.
-    //
-    // Có phân biệt Nam/Nữ ở các chỉ số có khác biệt rõ rệt
-    // (maleMin/maleMax, femaleMin/femaleMax) - nếu không rõ
-    // giới tính sẽ dùng min/max chung (khoảng gộp cả 2 giới).
-    //
-    // ⚠️ CHỈ MANG TÍNH THAM KHẢO CHUNG - khoảng bình thường có
-    // thể khác nhau tuỳ máy xét nghiệm/phòng lab. KHÔNG thay
-    // thế chẩn đoán của bác sĩ. Script chỉ hiện gợi ý, không
-    // tự điền bất cứ đâu.
-    // -----------------------------------------------------------
+    // v7.84 — NGƯỠNG SÀNG LỌC ĐỀ XUẤT, KHÔNG PHẢI NGƯỠNG CHẨN ĐOÁN.
+    // Đơn vị DATA giữ theo hợp đồng SI của bản cũ. Không đoán/chia nhân theo giá trị.
+    // Nếu có cột '<tên cột>_UNIT', dùng để kiểm tra đơn vị trước khi đánh giá.
+    // Ngưỡng action/urgent là cấu hình vận hành cần đối chiếu labo bệnh viện.
+    // Tham khảo: WHO 2024 Hb; AASLD 2025 AST/ALT; ADA 2026 glucose;
+    // Barts Health NHS / Right Decisions: PLT và NEU tuyệt đối.
+    // https://www.who.int/publications/i/item/9789240088542
+    // https://www.aasld.org/liver-fellow-network/core-series/back-basics/how-approach-elevated-liver-enzymes
+    // https://doi.org/10.2337/dc26-S006
+    // https://www.bartshealth.nhs.uk/haematology-advice-guidance
+    // https://www.rightdecisions.scot.nhs.uk/dgrefhelp-nhs-dumfries-galloway/haematology/neutropenia/
+    // Các ngưỡng không có quy chuẩn chung (WBC cao, ure, creatinin, nước tiểu,
+    // MCV, AST/ALT chuyển khám...) là ngưỡng đề xuất của bản này, không gán cho nguồn.
+    // Nước tiểu phụ thuộc loại que/máy; mức '+' và số đo là hai đường đánh giá riêng.
+    // GLU niệu dùng mmol/L theo DATA, không chia 18 trong bộ cảnh báo.
+    const CLS_RULESET_VERSION = '7.88';
+    const CLS_REFERRAL_TEXT = 'Đề nghị người dân đến khám {specialty} tại Bệnh viện Đa khoa khu vực Hóc Môn để được khám và tư vấn chi tiết hơn.';
+    // BẢN THỬ: ngưỡng đề nghị khám tách khỏi ngưỡng chẩn đoán; cần chủ nhiệm duyệt.
 
+    // Khoảng tham chiếu theo danh sách người dùng chốt ngày 30/09/2026.
+    // HGB 12–18 g/dL = 120–180 g/L; HCT 35–52% = 0.35–0.52 L/L;
+    // MCHC 31–36 g/dL = 310–360 g/L. Dữ liệu DATA giữ nguyên đơn vị SI.
+    // Các chỉ số còn lại ngoài danh sách giữ khoảng cũ; không sửa cấu hình cảnh báo.
     const CAN_LAM_SANG_REFERENCE = [
-        {
-            column: 'RBC', label: 'Số lượng HC',
-            min: 4.0, max: 5.4,
-            maleMin: 4.2, maleMax: 5.4,
-            femaleMin: 4.0, femaleMax: 4.9,
-            low: { code: 'D64.9', name: 'Thiếu máu chưa xác định' },
-            high: { code: 'D75.1', name: 'Đa hồng cầu thứ phát' }
-        },
-        {
-            column: 'HGB', label: 'Huyết sắc tố',
-            min: 120, max: 160,
-            maleMin: 130, maleMax: 160,
-            femaleMin: 120, femaleMax: 142,
-            low: { code: 'D64.9', name: 'Thiếu máu' }
-        },
-        {
-            column: 'HCT', label: 'Hematocrit',
-            min: 0.37, max: 0.52,
-            maleMin: 0.45, maleMax: 0.52,
-            femaleMin: 0.37, femaleMax: 0.48,
-            low: { code: 'D64.9', name: 'Thiếu máu' },
-            high: { code: 'D75.1', name: 'Đa hồng cầu' }
-        },
-        {
-            column: 'MCV', label: 'MCV',
-            min: 85, max: 95,
-            low: { code: 'D50.9', name: 'Thiếu máu hồng cầu nhỏ (gợi ý thiếu sắt)' },
-            high: { code: 'D53.9', name: 'Thiếu máu hồng cầu to' }
-        },
-        { column: 'MCH', label: 'MCH', min: 28, max: 32 },
-        { column: 'MCHC', label: 'MCHC', min: 320, max: 360 },
-        { column: 'RDW', label: 'RDW', min: 10, max: 16.5 },
-        {
-            column: 'WBC', label: 'Số lượng bạch cầu',
-            min: 4.0, max: 10.0,
-            low: { code: 'D72.8', name: 'Giảm bạch cầu' },
-            high: { code: 'D72.8', name: 'Tăng bạch cầu' }
-        },
-        { column: 'NEU#', label: 'BC trung tính', min: 1.7, max: 7.0 },
-        { column: 'LYM#', label: 'BC lympho', min: 1.0, max: 4.0 },
-        { column: 'MONO#', label: 'BC đơn nhân', min: 0.1, max: 1.0 },
-        {
-            column: 'EOS#', label: 'BC ái toan',
-            min: 0.0, max: 0.5,
-            high: { code: 'D72.1', name: 'Tăng bạch cầu ái toan' }
-        },
-        { column: 'BASO#', label: 'BC ái kiềm', min: 0.0, max: 0.1 },
-        {
-            column: 'PLT', label: 'Tiểu cầu',
-            min: 150, max: 400,
-            low: { code: 'D69.6', name: 'Giảm tiểu cầu' },
-            high: { code: 'D75.2', name: 'Tăng tiểu cầu' }
-        },
-        {
-            column: 'Glucose', label: 'Đường máu',
-            min: 3.9, max: 6.4,
-            low: { code: 'E16.2', name: 'Hạ đường huyết' },
-            high: { code: 'R73.9', name: 'Tăng đường huyết - theo dõi đái tháo đường' }
-        },
-        {
-            column: 'Ure', label: 'Urê',
-            min: 2.5, max: 7.5,
-            high: { code: 'R79.8', name: 'Tăng ure máu' }
-        },
-        {
-            column: 'Creatinine', label: 'Creatinin',
-            min: 44, max: 106,
-            maleMin: 62, maleMax: 106,
-            femaleMin: 44, femaleMax: 80,
-            high: { code: 'N19', name: 'Suy giảm chức năng thận' }
-        },
-        {
-            column: 'AST', label: 'ASAT(GOT)',
-            min: 0, max: 50,
-            maleMin: 0, maleMax: 50,
-            femaleMin: 0, femaleMax: 35,
-            high: { code: 'R74.0', name: 'Tăng men gan' }
-        },
-        {
-            column: 'ALT', label: 'ALAT(GPT)',
-            min: 0, max: 50,
-            maleMin: 0, maleMax: 50,
-            femaleMin: 0, femaleMax: 35,
-            high: { code: 'R74.0', name: 'Tăng men gan' }
-        },
-        { column: 'S.G', label: 'Tỉ trọng nước tiểu', min: 1.005, max: 1.030 },
-        { column: 'pH', label: 'pH nước tiểu', min: 5.0, max: 8.0 },
-        {
-            column: 'LEU', label: 'Bạch cầu niệu',
-            min: 0, max: 0,
-            high: { code: 'N39.0', name: 'Nhiễm khuẩn đường tiết niệu' }
-        },
-        {
-            column: 'BLD', label: 'Hồng cầu niệu',
-            min: 0, max: 0,
-            high: { code: 'R31', name: 'Tiểu máu' }
-        },
-        {
-            column: 'PRO', label: 'Protein niệu',
-            min: 0, max: 0,
-            high: { code: 'R80', name: 'Protein niệu' }
-        },
-        {
-            column: 'GLU', label: 'Glucose niệu',
-            min: 0, max: 0,
-            high: { code: 'R81', name: 'Đường niệu' }
-        },
-        {
-            column: 'KET', label: 'Thể cetonic niệu',
-            min: 0, max: 0,
-            high: { code: 'R82.4', name: 'Ceton niệu' }
-        },
-        {
-            column: 'BIL', label: 'Bilirubin niệu',
-            min: 0, max: 0,
-            high: { code: 'R82.2', name: 'Bilirubin niệu' }
-        },
-        {
-            column: 'URO', label: 'Urobilinogen niệu',
-            min: 0, max: 17,
-            high: { code: 'R82.2', name: 'Tăng urobilinogen niệu' }
-        }
-    ];
-
-
-    // Lấy đúng khoảng (nam/nữ) theo giới tính, hoặc khoảng
-    // chung nếu chỉ số không phân biệt giới hoặc không rõ giới
-    function getRefRange(
-        ref,
-        gioiTinhRaw
-    ) {
-
-        if (
-            gioiTinhRaw === 'M' &&
-            ref.maleMin !== undefined
-        ) {
-
-            return {
-                min: ref.maleMin,
-                max: ref.maleMax
-            };
-        }
-
-        if (
-            gioiTinhRaw === 'F' &&
-            ref.femaleMin !== undefined
-        ) {
-
-            return {
-                min: ref.femaleMin,
-                max: ref.femaleMax
-            };
-        }
-
-        return {
-            min: ref.min,
-            max: ref.max
-        };
+    {
+        "column": "RBC",
+        "label": "Số lượng HC",
+        "min": 3.8,
+        "max": 5.6
+    },
+    {
+        "column": "HGB",
+        "label": "Huyết sắc tố",
+        "min": 120,
+        "max": 180
+    },
+    {
+        "column": "HCT",
+        "label": "Hematocrit",
+        "min": 0.35,
+        "max": 0.52
+    },
+    {
+        "column": "MCV",
+        "label": "MCV",
+        "min": 80,
+        "max": 97
+    },
+    {
+        "column": "MCH",
+        "label": "MCH",
+        "min": 26,
+        "max": 32
+    },
+    {
+        "column": "MCHC",
+        "label": "MCHC",
+        "min": 310,
+        "max": 360
+    },
+    {
+        "column": "RDW",
+        "label": "RDW",
+        "min": 11,
+        "max": 15.7
+    },
+    {
+        "column": "WBC",
+        "label": "Số lượng bạch cầu",
+        "min": 4,
+        "max": 10
+    },
+    {
+        "column": "NEU#",
+        "label": "BC trung tính",
+        "min": 1.7,
+        "max": 7
+    },
+    {
+        "column": "LYM#",
+        "label": "BC lympho",
+        "min": 1,
+        "max": 4
+    },
+    {
+        "column": "MONO#",
+        "label": "BC đơn nhân",
+        "min": 0.1,
+        "max": 1
+    },
+    {
+        "column": "EOS#",
+        "label": "BC ái toan",
+        "min": 0,
+        "max": 0.5
+    },
+    {
+        "column": "BASO#",
+        "label": "BC ái kiềm",
+        "min": 0,
+        "max": 0.2
+    },
+    {
+        "column": "PLT",
+        "label": "Tiểu cầu",
+        "min": 130,
+        "max": 400
+    },
+    {
+        "column": "Glucose",
+        "label": "Đường máu",
+        "min": 3.9,
+        "max": 5.5
+    },
+    {
+        "column": "Ure",
+        "label": "Urê",
+        "min": 2.5,
+        "max": 7.5
+    },
+    {
+        "column": "Creatinine",
+        "label": "Creatinin",
+        "min": 45,
+        "max": 105,
+        "maleMin": 60,
+        "maleMax": 105,
+        "femaleMin": 45,
+        "femaleMax": 80
+    },
+    {
+        "column": "AST",
+        "label": "ASAT(GOT)",
+        "min": 13,
+        "max": 31
+    },
+    {
+        "column": "ALT",
+        "label": "ALAT(GPT)",
+        "min": 7,
+        "max": 40
+    },
+    {
+        "column": "S.G",
+        "label": "Tỉ trọng nước tiểu",
+        "min": 1.005,
+        "max": 1.03
+    },
+    {
+        "column": "pH",
+        "label": "pH nước tiểu",
+        "min": 5,
+        "max": 8
+    },
+    {
+        "column": "LEU",
+        "label": "Bạch cầu niệu",
+        "min": 0,
+        "max": 0
+    },
+    {
+        "column": "BLD",
+        "label": "Hồng cầu niệu",
+        "min": 0,
+        "max": 0
+    },
+    {
+        "column": "PRO",
+        "label": "Protein niệu",
+        "min": 0,
+        "max": 0
+    },
+    {
+        "column": "GLU",
+        "label": "Glucose niệu",
+        "min": 0,
+        "max": 0
+    },
+    {
+        "column": "KET",
+        "label": "Thể cetonic niệu",
+        "min": 0,
+        "max": 0
+    },
+    {
+        "column": "BIL",
+        "label": "Bilirubin niệu",
+        "min": 0,
+        "max": 0
+    },
+    {
+        "column": "URO",
+        "label": "Urobilinogen niệu",
+        "min": 0,
+        "max": 17
     }
+];
 
+    // Cấu hình cảnh báo tách riêng hoàn toàn khỏi khoảng tham chiếu.
+    const CLS_ALERT_CONFIG = {
+    "RBC": {
+        "label": "Số lượng hồng cầu",
+        "unit": "T/L",
+        "detailOnly": true
+    },
+    "HGB": {
+        "label": "Huyết sắc tố",
+        "unit": "g/L",
+        "actionLow": 110,
+        "actionHigh": 180,
+        "urgentLow": 80
+    },
+    "HCT": {
+        "label": "Hematocrit",
+        "unit": "L/L",
+        "detailOnly": true
+    },
+    "MCV": {
+        "label": "MCV",
+        "unit": "fL",
+        "actionLow": 70,
+        "actionHigh": 110
+    },
+    "MCH": {
+        "label": "MCH",
+        "unit": "pg",
+        "detailOnly": true
+    },
+    "MCHC": {
+        "label": "MCHC",
+        "unit": "g/L",
+        "detailOnly": true
+    },
+    "RDW": {
+        "label": "RDW",
+        "unit": "%",
+        "detailOnly": true
+    },
+    "WBC": {
+        "label": "Số lượng bạch cầu",
+        "unit": "G/L",
+        "actionLow": 3,
+        "actionHigh": 12,
+        "urgentLow": 2,
+        "urgentHigh": 30
+    },
+    "NEU#": {
+        "label": "Số lượng bạch cầu trung tính",
+        "unit": "G/L",
+        "actionLow": 1.5,
+        "actionHigh": 10,
+        "urgentLow": 0.5
+    },
+    "LYM#": {
+        "label": "Số lượng bạch cầu lympho",
+        "unit": "G/L",
+        "actionLow": 0.5,
+        "actionHigh": 5
+    },
+    "MONO#": {
+        "label": "Số lượng bạch cầu đơn nhân",
+        "unit": "G/L",
+        "actionHigh": 1.5
+    },
+    "EOS#": {
+        "label": "Số lượng bạch cầu ái toan",
+        "unit": "G/L",
+        "actionHigh": 1.5
+    },
+    "BASO#": {
+        "label": "Số lượng bạch cầu ái kiềm",
+        "unit": "G/L",
+        "detailOnly": true
+    },
+    "PLT": {
+        "label": "Số lượng tiểu cầu",
+        "unit": "G/L",
+        "actionLow": 100,
+        "actionHigh": 450,
+        "urgentLow": 50,
+        "urgentHigh": 1000
+    },
+    "Glucose": {
+        "label": "Glucose máu",
+        "unit": "mmol/L",
+        "actionLow": 3.9,
+        "actionHigh": 7,
+        "actionHighExclusive": true,
+        "urgentLow": 3,
+        "urgentHigh": 20
+    },
+    "Ure": {
+        "label": "Urê",
+        "unit": "mmol/L",
+        "actionHigh": 10
+    },
+    "Creatinine": {
+        "label": "Creatinin",
+        "unit": "µmol/L",
+        "actionHigh": 130,
+        "urgentHigh": 300
+    },
+    "AST": {
+        "label": "AST",
+        "unit": "U/L",
+        "actionHighRatio": 1.5,
+        "urgentHighRatio": 10
+    },
+    "ALT": {
+        "label": "ALT",
+        "unit": "U/L",
+        "actionHighRatio": 1.5,
+        "urgentHighRatio": 10
+    },
+    "S.G": {
+        "label": "Tỉ trọng nước tiểu",
+        "unit": "",
+        "detailOnly": true
+    },
+    "pH": {
+        "label": "pH nước tiểu",
+        "unit": "",
+        "detailOnly": true
+    },
+    "LEU": {
+        "label": "Bạch cầu niệu",
+        "unit": "cells/µL",
+        "urine": true,
+        "actionHigh": 75,
+        "actionGrade": 2
+    },
+    "BLD": {
+        "label": "Hồng cầu niệu",
+        "unit": "cells/µL",
+        "urine": true,
+        "actionHigh": 50,
+        "actionGrade": 2
+    },
+    "PRO": {
+        "label": "Protein niệu",
+        "unit": "g/L",
+        "urine": true,
+        "actionHigh": 1,
+        "actionGrade": 2
+    },
+    "GLU": {
+        "label": "Glucose niệu",
+        "unit": "mmol/L",
+        "urine": true,
+        "actionHigh": 5.5,
+        "actionGrade": 1
+    },
+    "KET": {
+        "label": "Ceton niệu",
+        "unit": "mmol/L",
+        "urine": true,
+        "actionHigh": 1.5,
+        "actionGrade": 2
+    },
+    "BIL": {
+        "label": "Bilirubin niệu",
+        "unit": "µmol/L",
+        "urine": true,
+        "actionHigh": 17,
+        "actionGrade": 1
+    },
+    "URO": {
+        "label": "Urobilinogen niệu",
+        "unit": "µmol/L",
+        "urine": true,
+        "actionHigh": 34,
+        "actionGrade": 2
+    }
+};
 
+    function getRefRange(ref, sex) {
+        if (sex === 'M' && ref.maleMin !== undefined) return {min:ref.maleMin,max:ref.maleMax};
+        if (sex === 'F' && ref.femaleMin !== undefined) return {min:ref.femaleMin,max:ref.femaleMax};
+        return {min:ref.min,max:ref.max};
+    }
+    // Chỉ chấp nhận một số hoàn chỉnh, không đọc '12abc', '1/2', '<5' thành số.
     function parseNumberLoose(val) {
-
-        if (
-            val === undefined ||
-            val === null
-        ) {
-
-            return NaN;
-        }
-
-        const s =
-            String(val)
-                .trim()
-                .replace(
-                    ',',
-                    '.'
-                );
-
-        if (s === '') {
-
-            return NaN;
-        }
-
-        return parseFloat(s);
+        if (val === undefined || val === null) return NaN;
+        const s = String(val).trim().replace(',', '.');
+        return s === '' ? NaN : parseFloat(s);
     }
-
-
-    function checkAbnormalResults(
-        data
-    ) {
-
-        const gioiTinhRaw =
-            (
-                getDataValueByColumn(
-                    data,
-                    'Giới tính'
-                ) || ''
-            ).toString().trim().toUpperCase();
-
-        const findings =
-            [];
-
-        for (
-            const ref of CAN_LAM_SANG_REFERENCE
-        ) {
-
-            const rawOriginal =
-                getDataValueByColumn(
-                    data,
-                    ref.column
-                );
-
-            const raw =
-                ref.column === 'S.G'
-                    ? normalizeSpecificGravity(
-                        rawOriginal
-                    )
-                    : rawOriginal;
-
-            const n =
-                parseNumberLoose(
-                    raw
-                );
-
-            if (
-                isNaN(n)
-            ) {
-
+    function clsNumber(value) {
+        const str = String(value ?? '').trim().replace(',', '.');
+        return /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(str) ? Number(str) : NaN;
+    }
+    function clsText(value) {
+        return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().trim();
+    }
+    function clsUnit(value) {
+        return String(value ?? '').toLowerCase().replace(/[μµ]/g,'u').replace(/\s/g,'');
+    }
+    function clsUnitMatches(actual, expected) {
+        const aliases = {'t/l':['t/l','10^12/l','10¹²/l','m/ul'], 'g/l':['g/l','10^9/l','10⁹/l','k/ul'], 'l/l':['l/l'], 'umol/l':['umol/l'], 'cells/ul':['cells/ul','cell/ul','/ul','leu/ul','ery/ul']};
+        const key=clsUnit(expected);
+        // g/L của Hb/MCHC là khối lượng; G/L của số lượng là 10^9/L.
+        if (expected === 'g/L') return clsUnit(actual)==='g/l';
+        return (aliases[key] || [key]).includes(clsUnit(actual));
+    }
+    function clsParseUrine(raw) {
+        const text=clsText(raw).replace(/\s/g,'');
+        if (['am','amtinh','negative','neg','binhthuong','normal','-','0'].includes(text)) return {value:0};
+        if (['trace','vet','+/-','±'].includes(text)) return {grade:.5};
+        if (/^\+{1,4}$/.test(text)) return {grade:text.length};
+        if (/^[1-4]\+$/.test(text)) return {grade:Number(text[0])};
+        if (['duong','duongtinh','positive','pos'].includes(text)) return {positive:true};
+        const value=clsNumber(raw);
+        return Number.isFinite(value) ? {value} : {invalid:true};
+    }
+    function countClsWarnings(findings) {
+        return getClsWarningGroups(findings).length + (findings || []).filter(f=>f.level==='review').length;
+    }
+    function checkAbnormalResults(data) {
+        const get=column => getDataValueByColumn(data,column);
+        const sexText=clsText(get('Giới tính'));
+        const sex=['m','nam','male'].includes(sexText)?'M':['f','nu','female'].includes(sexText)?'F':'';
+        // Không dùng cột 'Tuổi': nguồn cũ đôi khi chứa năm sinh.
+        const age=clsNumber(get('Tuổi thực'));
+        const model=typeof getCurrentMedinetModel==='function'?getCurrentMedinetModel():'';
+        const child=(Number.isFinite(age)&&age<18)||(!Number.isFinite(age)&&model==='M2');
+        const pregnant=['co','yes','true','1'].includes(clsText(get('Mang thai')));
+        const fastingText=clsText(get('Glucose đói') || get('Lấy máu lúc đói'));
+        const fasting=['co','yes','true','1','doi','luc doi'].includes(fastingText);
+        const result=[];
+        const add=(ref,raw,range,level,direction,note)=>result.push({column:ref.column,label:ref.label,value:String(raw),unit:ref.urine && !Number.isFinite(clsNumber(raw))?'':ref.unit,rangeText:`${range.min}–${range.max}${ref.unit?' '+ref.unit:''}`,level,direction,note:note||''});
+        for (const reference of CAN_LAM_SANG_REFERENCE) {
+            const ref={...reference,...CLS_ALERT_CONFIG[reference.column]};
+            const original=get(ref.column);
+            if (original===undefined||original===null||String(original).trim()==='') continue;
+            let range=getRefRange(ref,sex);
+            const raw=ref.column==='S.G'?normalizeSpecificGravity(original):original;
+            const parsed=ref.urine?clsParseUrine(raw):{value:clsNumber(raw)};
+            const explicitUnit=get(ref.column+'_UNIT');
+            if (explicitUnit && !clsUnitMatches(explicitUnit,ref.unit)) {
+                add(ref,original,range,'review',null,`Chưa đánh giá: đơn vị nguồn ${explicitUnit}; cấu hình yêu cầu ${ref.unit}.`); continue;
+            }
+            if(parsed.invalid || (!ref.urine&&!Number.isFinite(parsed.value))) {
+                add(ref,original,range,'review',null,'Chưa đánh giá: kết quả không phải số hoàn chỉnh hoặc cần xác nhận cách ghi.'); continue;
+            }
+            if (ref.urine) {
+                if(parsed.positive) {add(ref,original,range,'review',null,'Dương tính nhưng chưa có mức độ; bác sĩ kiểm tra trước khi đưa vào kết luận.');continue;}
+                const grade=parsed.grade;
+                const n=parsed.value;
+                if (n!==undefined && n<0) {add(ref,original,range,'review',null,'Giá trị âm không hợp lệ.');continue;}
+                if ((grade!==undefined&&grade>0)||(n!==undefined&&n>range.max)) {
+                    const active=grade!==undefined?grade>=ref.actionGrade:n>=ref.actionHigh;
+                    add(ref,original,range,active?'action':'mild','dương tính',grade===.5?'Mức vết: xem lại mẫu và bối cảnh lâm sàng.':'Đối chiếu mẫu, đơn vị và mức dương tính; không suy ra bệnh.');
+                }
                 continue;
             }
-
-            const range =
-                getRefRange(
-                    ref,
-                    gioiTinhRaw
-                );
-
-            const rangeText =
-                `${range.min}-${range.max}`;
-
-            if (
-                range.min !== undefined &&
-                n < range.min &&
-                ref.low
-            ) {
-
-                findings.push({
-                    label: ref.label,
-                    value: formatRoundedDisplay(raw),
-                    direction: 'thấp',
-                    rangeText,
-                    code: ref.low.code,
-                    name: ref.low.name
-                });
-
-            } else if (
-                range.max !== undefined &&
-                n > range.max &&
-                ref.high
-            ) {
-
-                findings.push({
-                    label: ref.label,
-                    value: formatRoundedDisplay(raw),
-                    direction: 'cao',
-                    rangeText,
-                    code: ref.high.code,
-                    name: ref.high.name
-                });
+            const n=parsed.value;
+            // Chặn các dấu hiệu sai đơn vị rõ ràng; không tự đổi kết quả nguồn.
+            if (n<0 || (ref.column==='HGB' && n>0 && n<25) || (ref.column==='HCT' && n>1) || (ref.column==='MCHC' && n>0 && n<100) || (ref.column==='S.G' && (n<1 || n>1.1)) || (ref.column==='pH' && n>14)) {
+                add(ref,original,range,'review',null,'Chưa đánh giá: kiểm tra giá trị và đơn vị nguồn. Không tự quy đổi.');continue;
+            }
+            if (ref.maleMin!==undefined&&!sex) {add(ref,original,range,'review',null,'Chưa rõ giới tính; cần xác minh trước khi dùng ngưỡng theo giới.');continue;}
+            const low=n<range.min, high=n>range.max;
+            if (child || (pregnant && ['HGB','HCT','RBC','Creatinine'].includes(ref.column))) {
+                add(ref,original,range,'review',null,child?'Chưa có bộ ngưỡng nhi khoa theo tuổi; cần bác sĩ đánh giá.':'Cần khoảng tham chiếu theo thai kỳ; cần bác sĩ đánh giá.');continue;
+            }
+            if (!low&&!high) continue;
+            const direction=low?'thấp':'cao';
+            let level='mild';
+            let note='Lệch khoảng tham chiếu; chưa đạt ngưỡng đề nghị khám của cấu hình.';
+            const actionHigh=ref.actionHighRatio?range.max*ref.actionHighRatio:ref.actionHigh;
+            const urgentHigh=ref.urgentHighRatio?range.max*ref.urgentHighRatio:ref.urgentHigh;
+            if (!ref.detailOnly) {
+                if ((low&&ref.actionLow!==undefined&&n<ref.actionLow)||(high&&actionHigh!==undefined&&(ref.actionHighExclusive?n>actionHigh:n>=actionHigh))) level='action';
+                if ((low&&ref.urgentLow!==undefined&&n<ref.urgentLow)||(high&&urgentHigh!==undefined&&n>=urgentHigh)) level='urgent';
+            }
+            if (level==='action') note='Đạt ngưỡng sàng lọc đề nghị khám của cấu hình; bác sĩ đối chiếu lâm sàng.';
+            if (level==='urgent') note='Cần bác sĩ đánh giá ngay mức độ và hướng xử trí; không chờ lời dặn khám thông thường.';
+            if (ref.detailOnly) note='Chỉ số hỗ trợ: xem phối hợp, không tự tạo đề nghị khám từ chỉ số này.';
+            if (ref.column==='Glucose'&&!fasting) note+=' Chưa xác nhận lấy máu lúc đói; không suy ra chẩn đoán đái tháo đường.';
+            if (child && !ref.urine && !['S.G','pH'].includes(ref.column)) {
+                level='review';note='Chưa có bộ ngưỡng nhi khoa theo tuổi; bác sĩ đánh giá, không áp dụng ngưỡng người lớn.';
+            }
+            if (pregnant && ['HGB','HCT','RBC','Creatinine'].includes(ref.column)) {
+                level='review';note='Cần khoảng tham chiếu theo thai kỳ; không tự áp dụng bộ ngưỡng này.';
+            }
+            if (level==='mild'&&ref.maleMin!==undefined&&!sex) note+=' Chưa rõ giới tính, đang dùng khoảng chung.';
+            add(ref,original,range,level,direction,note);
+        }
+        const nitRaw=get('NIT');
+        if (nitRaw!==undefined&&nitRaw!==null&&String(nitRaw).trim()!=='') {
+            const text=clsText(nitRaw).replace(/\s/g,'');
+            if (['1','+','duong','duongtinh','positive','pos','true'].includes(text)) {
+                result.push({column:'NIT',label:'Nitrit niệu',value:'Dương tính',rangeText:'Âm tính',level:'action',direction:'dương tính',note:'Không tự suy ra nhiễm khuẩn tiết niệu.'});
+            } else if (!['0','-','am','amtinh','negative','neg','false'].includes(text)) {
+                result.push({column:'NIT',label:'Nitrit niệu',value:String(nitRaw),rangeText:'Âm tính',level:'review',direction:null,note:'Chưa nhận diện kết quả định tính; cần kiểm tra.'});
             }
         }
-
-        // Nitrit - xử lý riêng vì là định tính (Âm/Dương tính)
-        const nit =
-            (data['NIT'] || '').toString().trim();
-
-        if (
-            nit !== '' &&
-            nit !== '0'
-        ) {
-
-            findings.push({
-                label: 'Nitrit',
-                value: 'Dương tính',
-                direction: null,
-                rangeText: 'Âm tính',
-                code: 'N39.0',
-                name: 'Nhiễm khuẩn đường tiết niệu'
-            });
+        const totalWbc=clsNumber(get('WBC'));
+        if (Number.isFinite(totalWbc) && totalWbc>=0 && !result.some(f=>f.column==='WBC'&&f.level==='review')) {
+            let invalidDifferential=false;
+            for (const column of ['NEU#','LYM#','MONO#','EOS#','BASO#']) {
+                const n=clsNumber(get(column));
+                if(Number.isFinite(n)&&n>totalWbc+.2) {
+                    invalidDifferential=true;
+                    let f=result.find(f=>f.column===column);
+                    if(!f) {
+                        const reference=CAN_LAM_SANG_REFERENCE.find(r=>r.column===column);
+                        const ref={...reference,...CLS_ALERT_CONFIG[column]};
+                        add(ref,get(column),getRefRange(ref,sex),'review',null,'');
+                        f=result[result.length-1];
+                    }
+                    f.level='review';f.note='Số lượng thành phần lớn hơn tổng bạch cầu; kiểm tra dữ liệu và đơn vị.';
+                }
+            }
+            // Không chọn riêng WBC làm kết luận khi cấu trúc công thức bạch cầu bất nhất.
+            if(invalidDifferential) {
+                const wbcFinding=result.find(f=>f.column==='WBC');
+                if(wbcFinding) {wbcFinding.level='review';wbcFinding.note='Công thức bạch cầu không nhất quán; kiểm tra nguồn trước khi diễn giải.';}
+            }
         }
+        return evaluateClsGroups(data, result, sex);
+    }
 
+    // v7.84: Giá trị lệch tham chiếu là chi tiết, không phải quyết định chuyển khám.
+    // Mỗi nhóm có điều kiện phối hợp; chỉ các ngoại lệ đáng kể/khẩn mới đứng độc lập.
+    // Đây là cấu hình sàng lọc đề xuất, không mô phỏng chẩn đoán hay suy ra triệu chứng.
+    const CLS_GROUPS = {
+        red: 'Nhóm hồng cầu', white: 'Nhóm bạch cầu', platelet: 'Nhóm tiểu cầu',
+        liver: 'Nhóm AST/ALT', kidney: 'Nhóm urê/creatinin',
+        glucose: 'Nhóm glucose máu', urine: 'Nhóm nước tiểu', multiple: 'Nhiều dòng tế bào giảm'
+    };
+    // Mô tả đầy đủ các điều kiện hoạt động của bản này, để không hiển thị bảng
+    // ngưỡng từng chỉ số như thể đó là quyết định chuyển khám tự động.
+    const CLS_GROUP_CRITERIA = [
+        ['Bản thử 7.87','Các ngưỡng sau là đề xuất vận hành, chưa phải bộ tiêu chí được bệnh viện phê duyệt.'],
+        ['Hồng cầu','Hb <110 hoặc >180 g/L; Hb thấp kèm MCV lệch rõ; hoặc RBC ≥6 và HCT ≥0,55. Các chỉ số hỗ trợ đơn độc không tự tạo lời dặn.'],
+        ['Bạch cầu','WBC <3 hoặc ≥12; NEU# <1,5; EOS# ≥1,5 G/L. Lympho và đơn nhân vẫn cần phối hợp theo quy tắc, không tự gán bệnh.'],
+        ['Tiểu cầu','PLT <100 hoặc ≥450 G/L.'],
+        ['Gan','AST hoặc ALT ≥1,5 lần giới hạn trên.'],
+        ['Thận','Creatinin ≥1,25 lần giới hạn trên theo giới; urê ≥10 mmol/L; giữ điều kiện phối hợp cũ.'],
+        ['Glucose','Glucose <3,9 hoặc >7 mmol/L tạo đề nghị khám; không phải tiêu chí chẩn đoán. Chưa đủ bối cảnh để phân loại glucose đói/bất kỳ.'],
+        ['Nước tiểu','NIT+ và LEU ≥75/2+; PRO ≥1/2+; BLD ≥50/2+; GLU ≥5,5/1+; KET ≥1,5/2+; BIL ≥17/1+; URO ≥34/2+. Mức vết và chỉ số hỗ trợ không tự tạo đề nghị khám.'],
+        ['Khẩn','Giữ các ngưỡng khẩn cũ. Phối hợp glucose và ceton chỉ nâng khẩn nếu glucose ≥11,1 và KET ≥1,5/2+.'],
+        ['Phối hợp','Giữ kiểm tra nhiều dòng tế bào và tính nhất quán công thức bạch cầu; thiếu bối cảnh không được đoán.']
+    ];
+    function clsGroupId(column) {
+        if (['RBC','HGB','HCT','MCV','MCH','MCHC','RDW'].includes(column)) return 'red';
+        if (['WBC','NEU#','LYM#','MONO#','EOS#','BASO#'].includes(column)) return 'white';
+        if (column==='PLT') return 'platelet';
+        if (['AST','ALT'].includes(column)) return 'liver';
+        if (['Ure','Creatinine'].includes(column)) return 'kidney';
+        if (column==='Glucose') return 'glucose';
+        return 'urine';
+    }
+    function evaluateClsGroups(data, findings, sex) {
+        const value=column=>clsNumber(getDataValueByColumn(data,column));
+        const find=column=>findings.find(f=>f.column===column && f.level!=='review');
+        const usable=column=>!findings.some(f=>f.column===column && f.level==='review');
+        const num=column=>usable(column)?value(column):NaN;
+        const yes=column=>['co','yes','true','1'].includes(clsText(getDataValueByColumn(data,column)));
+        const qualify=(id, columns, reason, urgent=false)=>{
+            columns.forEach(column=>{
+                const f=find(column);
+                if(!f) return;
+                f.groupId=id;f.groupReason=reason;
+                if(f.level!=='urgent') f.level=urgent?'urgent':'action';
+            });
+        };
+        // Ghi lại mức sàng lọc số học để kiểm tra quy tắc, không đưa vào kết luận.
+        findings.forEach(f=>{
+            f.groupId=clsGroupId(f.column);
+            f.candidateLevel=f.level;
+            f.groupReason='';
+            if(f.level==='action') f.level='mild';
+        });
+        // Ngoại lệ khẩn được giữ nguyên, không cần chờ thêm chỉ số khác.
+        findings.filter(f=>f.level==='urgent').forEach(f=>{
+            f.groupReason='Giá trị đạt ngưỡng cần bác sĩ đánh giá ngay.';
+        });
+        const hb=num('HGB'),wbc=num('WBC'),plt=num('PLT'),neu=num('NEU#'),lym=num('LYM#');
+        if(hb<110 || hb>=180) qualify('red',['HGB'],'Huyết sắc tố đạt mức đáng kể của bộ quy tắc.');
+        if(hb< (sex==='M'?120:110) && (num('MCV')<70 || num('MCV')>=110))
+            qualify('red',['HGB','MCV'],'Huyết sắc tố giảm kèm MCV lệch rõ.');
+        if(num('HCT')>=.55 && num('RBC')>=6)
+            qualify('red',['RBC','HCT'],'Hồng cầu và hematocrit cùng tăng rõ.');
+        // Không dùng hai lệch sát ngưỡng (Hb 129 + PLT 149) để nâng thành cảnh báo.
+        const lowLines=[];
+        if(hb<(sex==='M'?120:110))lowLines.push('HGB');
+        if(wbc<3.5)lowLines.push('WBC');
+        if(plt<120)lowLines.push('PLT');
+        if(neu<1.5) qualify('white',['NEU#'],'Số lượng bạch cầu trung tính giảm rõ.');
+        if(wbc<3 || wbc>=12) qualify('white',['WBC'],'Tổng số bạch cầu đạt mức đáng kể.');
+        if(wbc>=12 && neu>=10) qualify('white',['WBC','NEU#'],'Tổng bạch cầu và bạch cầu trung tính cùng tăng rõ.');
+        // LYM 5,9 đơn độc, kể cả kèm WBC 12, không đủ điều kiện tự đề nghị khám.
+        if(lym>5 && (hb<100 || plt<100 || yes('LYM_CanKham')))
+            qualify('white',['LYM#'],'Lympho tăng kèm dòng tế bào giảm rõ hoặc bác sĩ đã xác nhận cần khám.');
+        if(lym>=10 && wbc>=20)
+            qualify('white',['WBC','LYM#'],'Lympho tăng rõ kèm tổng số bạch cầu tăng rõ.');
+        if(num('EOS#')>=1.5)
+            qualify('white',['EOS#'],'Ái toan đạt ngưỡng đề nghị khám của bản thử.');
+        if(num('MONO#')>=1.5 && wbc>=20)
+            qualify('white',['WBC','MONO#'],'Bạch cầu đơn nhân tăng kèm tổng số bạch cầu tăng rõ.');
+        if(plt<100 || plt>=450)
+            qualify('platelet',['PLT'],'Tiểu cầu đạt ngưỡng đề nghị khám của bản thử.');
+        const astRef=CAN_LAM_SANG_REFERENCE.find(r=>r.column==='AST');
+        const altRef=CAN_LAM_SANG_REFERENCE.find(r=>r.column==='ALT');
+        const astRatio=num('AST')/getRefRange(astRef,sex).max;
+        const altRatio=num('ALT')/getRefRange(altRef,sex).max;
+        if(astRatio>=1.5)qualify('liver',['AST'],'AST đạt ít nhất 1,5 lần giới hạn trên.');
+        if(altRatio>=1.5)qualify('liver',['ALT'],'ALT đạt ít nhất 1,5 lần giới hạn trên.');
+        if(astRatio>=1.5 && altRatio>=1.5)
+            qualify('liver',['AST','ALT'],'AST và ALT cùng tăng ít nhất 1,5 lần giới hạn trên.');
+        const crRef=CAN_LAM_SANG_REFERENCE.find(r=>r.column==='Creatinine');
+        const crUpper=getRefRange(crRef,sex).max;
+        if(num('Creatinine')>=1.25*crUpper)
+            qualify('kidney',['Creatinine'],'Creatinin tăng ít nhất 1,25 lần giới hạn trên.');
+        if(num('Creatinine')>crUpper+10 && num('Ure')>=10)
+            qualify('kidney',['Creatinine','Ure'],'Creatinin và urê cùng tăng vượt mức phối hợp.');
+        if(num('Ure')>=10) qualify('kidney',['Ure'],'Urê đạt ngưỡng đề nghị khám của bản thử.');
+        const sugar=find('Glucose');
+        if(sugar && ['action','urgent'].includes(sugar.candidateLevel))
+            qualify('glucose',['Glucose'],'Glucose đạt ngưỡng độc lập; không suy ra chẩn đoán.');
+        const gradeOrValue=(column,numeric,grade)=>{
+            if(!usable(column))return false;
+            const p=clsParseUrine(getDataValueByColumn(data,column));
+            return (p.value!==undefined && p.value>=numeric)||(p.grade!==undefined&&p.grade>=grade);
+        };
+        if(find('NIT') && gradeOrValue('LEU',75,2))
+            qualify('urine',['NIT','LEU'],'Nitrit dương tính kèm bạch cầu niệu tăng rõ.');
+        if(gradeOrValue('PRO',1,2))qualify('urine',['PRO'],'Protein niệu đạt mức đáng kể.');
+        if(gradeOrValue('BLD',50,2))qualify('urine',['BLD'],'Hồng cầu niệu đạt mức đáng kể.');
+        if(gradeOrValue('BIL',17,1))qualify('urine',['BIL'],'Bilirubin niệu dương tính ở mức đã xác định.');
+        if(gradeOrValue('URO',34,2))qualify('urine',['URO'],'Urobilinogen niệu tăng rõ.');
+        if(gradeOrValue('GLU',5.5,1))
+            qualify('urine',['GLU'],'Glucose niệu tăng rõ hoặc đi kèm glucose máu đạt ngưỡng.');
+        if(gradeOrValue('KET',1.5,2))qualify('urine',['KET'],'Ceton niệu đạt mức đáng kể.');
+        if(sugar && num('Glucose')>=11.1 && sugar.direction==='cao' && ['action','urgent'].includes(sugar.level) && gradeOrValue('KET',1.5,2))
+            qualify('glucose',['Glucose','KET'],'Glucose máu tăng kèm ceton niệu rõ.',true);
+        if(lowLines.length>=2)qualify('multiple',lowLines,'Ít nhất hai dòng tế bào giảm vượt mức phối hợp đã cấu hình.');
+        // Chỉ giữ ghi chú xác minh dữ liệu; không rải lời đề nghị khám ở từng chỉ số.
+        findings.forEach(f=>{if(f.level!=='review') f.note='';});
         return findings;
+    }
+    function getClsWarningGroups(findings) {
+        const map=new Map();
+        (findings||[]).filter(f=>['action','urgent'].includes(f.level)).forEach(f=>{
+            const id=f.groupId || clsGroupId(f.column);
+            if(!map.has(id))map.set(id,{id,title:CLS_GROUPS[id],level:'action',findings:[],reasons:[]});
+            const group=map.get(id);group.findings.push(f);
+            if(f.level==='urgent')group.level='urgent';
+            if(f.groupReason && !group.reasons.includes(f.groupReason))group.reasons.push(f.groupReason);
+        });
+        return Array.from(map.values());
     }
 
 
@@ -7637,7 +7944,7 @@ async function autoM2KhamLamSang() {
     let lastCanLamSangReportPatientKey =
         "";
     const LAST_CLS_REPORT_STORAGE_KEY =
-        'medinet-auto-last-cls-report-v760';
+        'medinet-auto-last-cls-report-v788';
 
     async function autoCanLamSang() {
 
@@ -8007,74 +8314,53 @@ async function autoM2KhamLamSang() {
     // -----------------------------------------------------------
 
 
-    function renderInspectorFindingsHtml(findings) {
-        if (!Array.isArray(findings) || !findings.length) {
-            return '<div class="xai-ok">✓ Chưa thấy chỉ số bất thường theo khoảng tham chiếu.</div>';
+    function clsEscape(value) {
+        return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function buildClsConclusion(findings, specialty) {
+        const selected=(findings||[]).filter(f=>['action','urgent'].includes(f.level));
+        if(!selected.length) return '';
+        const join=list=>list.length<2?list[0]:list.slice(0,-1).join(', ')+' và '+list[list.length-1];
+        const groups=[];
+        for(const [direction,word] of [['cao','tăng'],['thấp','giảm'],['dương tính','dương tính']]) {
+            const labels=[...new Set(selected.filter(f=>f.direction===direction).map(f=>/^[A-Z0-9.#]+$/.test(f.label)?f.label:f.label[0].toLowerCase()+f.label.slice(1)))];
+            if(labels.length) groups.push(labels.join(', ')+' '+word);
         }
-
-        return findings.map(f => {
-            const isLow = f.direction === 'thấp';
-            const stateClass = isLow ? 'xai-low' : 'xai-high';
-            const stateText = f.direction ? String(f.direction).toUpperCase() : 'XEM';
-            const code = f.code || '';
-            const name = f.name || '';
-            const ref = f.rangeText || '';
-            return (
-                `<div class="xai-finding ${stateClass}">` +
-                    `<div class="xai-badge">${stateText}</div>` +
-                    '<div class="xai-finding-main">' +
-                        `<div class="xai-finding-name">${f.label || ''}</div>` +
-                        `<div class="xai-finding-value">${f.value ?? ''}</div>` +
-                        `<div class="xai-finding-ref">Tham chiếu: ${ref}</div>` +
-                        `<div class="xai-finding-note"><span class="xai-icd-label">ICD-10 tham khảo:</span><span class="xai-icd-value"><b>${code}</b>${name ? `<em> · ${name}</em>` : ''}</span></div>` +
-                    '</div>' +
-                '</div>'
-            );
-        }).join('');
+        const intro='Kết quả xét nghiệm ghi nhận '+join(groups)+'.\n';
+        if(selected.some(f=>f.level==='urgent')) {
+            return intro+'Đề nghị người dân được bác sĩ đánh giá ngay để có hướng xử trí phù hợp.';
+        }
+        const target=specialty || 'chuyên khoa phù hợp';
+        return intro+CLS_REFERRAL_TEXT.replace('{specialty}',target);
     }
-
+    function renderInspectorFindingsHtml(findings) {
+        if(!findings.length) return '<div class="xai-ok">Chưa ghi nhận chỉ số lệch trong phạm vi bộ quy tắc hiện có.</div>';
+        const titles={mild:'Ngoài tham chiếu',action:'Đề nghị khám',urgent:'Đánh giá ngay',review:'Cần kiểm tra'};
+        return findings.map(f=>'<div class="xai-finding '+(f.direction==='thấp'?'xai-low':'xai-high')+'">'+
+            '<div class="xai-badge">'+clsEscape(titles[f.level]||'Cần xác minh')+'</div><div class="xai-finding-main">'+
+            '<div class="xai-finding-name">'+clsEscape(f.label)+'</div>'+
+            '<div class="xai-finding-value">'+clsEscape(f.value)+(f.unit?' '+clsEscape(f.unit):'')+'</div>'+
+            '<div class="xai-finding-ref">Tham chiếu: '+clsEscape(f.rangeText)+'</div>'+
+            (f.level==='review'?'<div class="xai-finding-note" style="display:block!important;white-space:normal!important">'+clsEscape(f.note)+'</div>':'')+'</div></div>').join('');
+    }
     function buildCanLamSangReportHtml(r) {
-        if (!r) return '<div>Chưa có báo cáo.</div>';
-
-        const findingCount = Array.isArray(r.findings) ? r.findings.length : 0;
-        const missingCount = Array.isArray(r.missingLabels) ? r.missingLabels.length : 0;
-        const patientLine = [
-            r.sidThat ? `SID ${r.sidThat}` : '',
-            r.tuoi ? `Năm sinh ${r.tuoi}` : '',
-            r.gioiTinh || ''
-        ].filter(Boolean).join(' · ');
-
-        const missingHtml = missingCount
-            ? (
-                '<section class="xai-section xai-missing">' +
-                    '<div class="xai-section-title">Chưa có kết quả</div>' +
-                    '<div class="xai-chip-list">' +
-                    r.missingLabels.map(l => `<span class="xai-chip">${l}</span>`).join('') +
-                    '</div>' +
-                '</section>'
-            )
-            : '';
-
-        return (
-            '<div class="xai-report">' +
-                '<header class="xai-patient">' +
-                    `<div class="xai-patient-name">${r.tenBenhNhan || ''}</div>` +
-                    `<div class="xai-patient-meta">${patientLine}</div>` +
-                '</header>' +
-                '<div class="xai-summary">' +
-                    `<div class="xai-stat xai-stat-warn"><span>Cần kiểm tra</span><b>${findingCount}</b></div>` +
-                    `<div class="xai-stat xai-stat-missing"><span>Thiếu kết quả</span><b>${missingCount}</b></div>` +
-                '</div>' +
-                missingHtml +
-                '<section class="xai-section">' +
-                    '<div class="xai-section-title">Chỉ số cần xem lại</div>' +
-                    '<div class="xai-findings">' + renderInspectorFindingsHtml(r.findings || []) + '</div>' +
-                '</section>' +
-                '<div class="xai-save">💾 Nhớ bấm “Lưu thay đổi” trước khi sang mục khác.</div>' +
-            '</div>'
-        );
+        if(!r) return '<div>Chưa có báo cáo.</div>';
+        const findings=r.findings||[];
+        const active=findings.filter(f=>['action','urgent'].includes(f.level));
+        const warningGroups=getClsWarningGroups(findings);
+        const review=findings.filter(f=>f.level==='review');
+        const mild=findings.filter(f=>f.level==='mild');
+        const missing=r.missingLabels||[];
+        const conclusion=buildClsConclusion(findings);
+        const section=(title,list)=>list.length?'<section class="xai-section"><div class="xai-section-title">'+title+'</div><div class="xai-findings">'+renderInspectorFindingsHtml(list)+'</div></section>':'';
+        const copy='';
+        return '<div class="xai-report"><header class="xai-patient"><div class="xai-patient-name">'+clsEscape(r.tenBenhNhan)+'</div><div class="xai-patient-meta">'+clsEscape(['SID '+(r.sidThat||'?'),r.gioiTinh||''].join(' · '))+'</div></header>'+
+            '<div class="xai-summary"><div class="xai-stat xai-stat-warn"><span>Nhóm cần khám / đánh giá ngay</span><b>'+warningGroups.length+'</b></div><div class="xai-stat xai-stat-missing"><span>Thiếu kết quả</span><b>'+missing.length+'</b></div></div>'+
+            '<div class="xai-section">Kết quả ngoài khoảng tham chiếu: <b>'+findings.filter(f=>f.direction).length+'</b></div>'+copy+warningGroups.map(group=>'<section class="xai-section"><div class="xai-section-title">'+clsEscape(group.title)+' — '+(group.level==='urgent'?'Cần đánh giá ngay':'Đề nghị khám')+'</div><div class="xai-findings">'+renderInspectorFindingsHtml(group.findings)+'</div></section>').join('')+section('Cần xác minh dữ liệu',review)+
+            (mild.length?'<details open class="xai-section"><summary style="cursor:pointer!important">Kết quả ngoài khoảng tham chiếu khác ('+mild.length+')</summary><div class="xai-findings">'+renderInspectorFindingsHtml(mild)+'</div></details>':'')+
+            (missing.length?'<section class="xai-section xai-missing"><div class="xai-section-title">Chưa có kết quả</div><div class="xai-chip-list">'+missing.map(l=>'<span class="xai-chip">'+clsEscape(l)+'</span>').join('')+'</div></section>':'')+
+            '<div class="xai-save">💾 Nhớ bấm “Lưu thay đổi” trước khi sang mục khác.</div></div>';
     }
-
     function showLatestCanLamSangReport(autoShown = false) {
         restoreLastCanLamSangReport();
         if (!lastCanLamSangReport) {
@@ -8089,11 +8375,13 @@ async function autoM2KhamLamSang() {
 
         const r = lastCanLamSangReport;
         const hasWarning = !!(
-            (r.findings && r.findings.length) ||
+            countClsWarnings(r.findings) ||
             (r.missingLabels && r.missingLabels.length)
         );
 
-        const title = hasWarning
+        const title = (r.findings || []).some(f => f.level === 'urgent')
+            ? 'Cần bác sĩ đánh giá ngay'
+            : hasWarning
             ? 'Kết quả cần kiểm tra'
             : 'Kết quả xét nghiệm';
 
@@ -8101,7 +8389,7 @@ async function autoM2KhamLamSang() {
             title,
             buildCanLamSangReportHtml(r),
             hasWarning ? 'warn' : 'info',
-            autoShown ? (hasWarning ? 12000 : 7500) : 0
+            0
         );
 
         if (autoShown && unifiedAutoRuntime.running) {
@@ -15622,8 +15910,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         }
 
         return !!(
-            (lastCanLamSangReport.findings &&
-                lastCanLamSangReport.findings.length) ||
+            countClsWarnings(lastCanLamSangReport.findings) ||
             (lastCanLamSangReport.missingLabels &&
                 lastCanLamSangReport.missingLabels.length)
         );
@@ -15793,6 +16080,11 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
     }
 
     async function runAutoByDetectedModel(model) {
+        if(isReferralConclusionPage()) {
+            showReferralComposer();
+            unifiedAutoRuntime.reportShown=true;
+            return;
+        }
 
         switch (model) {
 
@@ -15823,12 +16115,12 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
     function buildUnifiedCompletionMessage(model) {
 
         const report = lastCanLamSangReport;
-        const abnormalCount = report && report.findings ? report.findings.length : 0;
+        const abnormalCount = report ? countClsWarnings(report.findings) : 0;
         const missingCount = report && report.missingLabels ? report.missingLabels.length : 0;
 
         let warning = '';
         if (abnormalCount || missingCount) {
-            warning = `\n⚠️ ${abnormalCount} bất thường` +
+            warning = `\n⚠️ ${abnormalCount} nhóm cảnh báo / mục cần xác minh` +
                 (missingCount ? ` · ${missingCount} thông số thiếu` : '') +
                 '. Bấm dấu ! để xem chi tiết.';
         }
@@ -15841,6 +16133,423 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
     }
 
 
+
+    // v7.89 — ĐỀ NGHỊ KHÁM Ở PHẦN KẾT LUẬN
+    const REFERRAL_DEPARTMENTS = [
+        'Nội tổng hợp', 'Nội tiết', 'Nội tim mạch', 'Nội thận lọc máu',
+        'Nội Thần kinh Cơ xương khớp', 'Mắt', 'Răng Hàm Mặt', 'Tai Mũi Họng',
+        'Da liễu', 'Ngoại tổng hợp', 'Ngoại chấn thương chỉnh hình',
+        'Sản phụ khoa', 'Nhi', 'Truyền nhiễm'
+    ];
+    const referralDrafts = new Map();
+    function referralLabelText(text) {
+        return norm(text).replace(/^\d+[.)]\s*/, '').replace(/[：:*]+$/g, '').replace(/\s*\(\s*/g,' (').replace(/\s*\)/g,')').trim();
+    }
+    function isReferralPortalControl(el) {
+        return !!el && (/^(INPUT|TEXTAREA)$/.test(el.tagName) || el.matches('.ql-editor[contenteditable="true"]')) &&
+            !el.closest('#medinet-auto-dock-panel,[hidden],[aria-hidden="true"],.dx-state-invisible') && !el.disabled && !el.readOnly &&
+            (el.matches('.ql-editor[contenteditable="true"]') || el.tagName==='TEXTAREA' || ['text','search',''].includes(el.type||'')) &&
+            !!el.getClientRects().length;
+    }
+    function findReferralTarget() {
+        const selector='textarea,input,.ql-editor[contenteditable="true"]';
+        const names=['đề nghị (ghi rõ)','đề nghị ghi rõ','đề nghị của bác sĩ','đề nghị'];
+        const controls=Array.from(document.querySelectorAll(selector)).filter(isReferralPortalControl);
+        const labels=Array.from(document.querySelectorAll('label,b,strong,span,div,p,h3,h4,h5,.control-label'))
+            .filter(el=>!el.closest('#medinet-auto-dock-panel') && el.getClientRects().length && names.includes(referralLabelText(el.textContent)));
+        const exact=labels.filter(el=>referralLabelText(el.textContent).includes('ghi rõ'));
+        const found=new Set();
+        for(const label of (exact.length?exact:labels)) {
+            const id=label.getAttribute('for'),linked=id && document.getElementById(id);
+            if(isReferralPortalControl(linked)) {found.add(linked);continue;}
+            if(linked)Array.from(linked.querySelectorAll(selector)).filter(isReferralPortalControl).forEach(el=>found.add(el));
+            let parent=label.parentElement;
+            for(let depth=0;parent && depth<8;depth++,parent=parent.parentElement) {
+                const inputs=Array.from(parent.querySelectorAll(selector)).filter(isReferralPortalControl);
+                if(inputs.length===1) {found.add(inputs[0]);break;}
+                if(inputs.length>1)break;
+            }
+        }
+        if(found.size===1)return Array.from(found)[0];
+        // The exact heading can sit outside the editor's box. Bound the search
+        // by DOM order and the next field heading rather than choosing the first editor on the page.
+        if(exact.length) {
+            const ordered=new Set();
+            for(const label of exact) {
+                const following=controls.filter(el=>label.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING);
+                for(const control of following) {
+                    const range=document.createRange();
+                    range.setStartAfter(label);range.setEndBefore(control);
+                    const between=norm(range.cloneContents().textContent);
+                    if(/(?:\d+[.)]\s*(?:các bệnh|phân loại|đề nghị)|ghi chú kết luận|lưu thay đổi)/i.test(between))break;
+                    if(control.matches('.ql-editor') || control.tagName==='TEXTAREA') {ordered.add(control);break;}
+                }
+            }
+            if(ordered.size===1)return Array.from(ordered)[0];
+        }
+        const named=controls.filter(el=>names.includes(referralLabelText(el.getAttribute('aria-label')||'')) ||
+            /^(denghi|recommendation)$/i.test((el.getAttribute('name')||el.id||'').replace(/[^a-z]/gi,'')));
+        return named.length===1?named[0]:null;
+    }
+    function isReferralConclusionPage() {
+        if(isModelListPage())return false;
+        const title=getCurrentTabTitle();
+        return title.includes('kết luận') || !!findReferralTarget();
+    }
+    function buildReferralObservation(findings) {
+        const selected=(findings||[]).filter(f=>['action','urgent'].includes(f.level));
+        const parts=[];
+        for(const [direction,word] of [['cao','tăng'],['thấp','giảm'],['dương tính','dương tính']]) {
+            const labels=[...new Set(selected.filter(f=>f.direction===direction).map(f=>/^[A-Z0-9.#]+$/.test(f.label)?f.label:f.label[0].toLowerCase()+f.label.slice(1)))];
+            if(labels.length)parts.push(labels.join(', ')+' '+word);
+        }
+        if(!parts.length)return '';
+        const joined=parts.length<2?parts[0]:parts.slice(0,-1).join(', ')+' và '+parts[parts.length-1];
+        return 'Kết quả xét nghiệm ghi nhận '+joined+'.';
+    }
+    function referralPlain(text) {
+        return norm(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+    }
+    function cleanReferralDiseases(text) {
+        return String(text||'').replace(/Chẩn đoán\s*(sơ bộ|xác định)\s*:/gi,'\n')
+            .split(/\n|;/).map(t=>t.replace(/^\s*(?:[-•]+|\d+[.)])\s*/,'').trim()).filter(t=>{
+            const plain=referralPlain(t).replace(/[.!:]+$/,'');
+            return plain && !/^(khong co|khong|chua phat hien (benh|bat thuong)|binh thuong|khong phat hien bat thuong)$/.test(plain);
+        }).filter((t,i,all)=>all.findIndex(v=>referralPlain(v)===referralPlain(t))===i).join('; ');
+    }
+    function referralNodeText(node) {
+        // textContent merges adjacent diagnosis paragraphs; retain each disease as a line.
+        if(node.nodeType===3)return node.nodeValue||'';
+        if(node.nodeType!==1 && node.nodeType!==11)return '';
+        if(node.nodeType===1 && /^(SCRIPT|STYLE|BUTTON)$/.test(node.tagName))return '';
+        if(node.nodeType===1 && node.tagName==='BR')return '\n';
+        const value=Array.from(node.childNodes).map(referralNodeText).join('');
+        return node.nodeType===1 && /^(DIV|P|LI|UL|OL)$/.test(node.tagName)?value+'\n':value;
+    }
+    function readReferralDiseases() {
+        const title=el=>/^(2[.)]?\s*)?cac benh,? tat\s*\(neu co\)[:*]?$/i.test(referralPlain(el.textContent));
+        const visible=el=>!el.closest('#medinet-auto-dock-panel,[hidden],[aria-hidden="true"],.dx-state-invisible') && el.getClientRects().length;
+        const headings=Array.from(document.querySelectorAll('label,b,strong,span,div,p,h3,h4,h5')).filter(el=>visible(el)&&title(el));
+        const values=new Set();
+        for(const heading of headings) {
+            let parent=heading.parentElement;
+            for(let depth=0;parent && depth<10;depth++,parent=parent.parentElement) {
+                const text=parent.innerText||parent.textContent||'';
+                if(/3[.)]\s*Đề nghị|1[.)]\s*Phân loại/i.test(text))break;
+                // Confirmed source reader: diagnosis text uses #263238 in Medinet.
+                const blocks=Array.from(parent.querySelectorAll('div[style]')).filter(el=>visible(el) &&
+                    /(?:#?263238|rgb\(\s*38\s*,\s*50\s*,\s*56\s*\))/i.test(el.getAttribute('style')||''));
+                if(blocks.length===1) {values.add(cleanReferralDiseases(referralNodeText(blocks[0])));break;}
+                const editors=Array.from(parent.querySelectorAll('.ql-editor,textarea:not([hidden]),input[type="text"]')).filter(visible);
+                if(editors.length===1) {values.add(cleanReferralDiseases(editors[0].matches('.ql-editor')?referralNodeText(editors[0]):editors[0].value));break;}
+                if(editors.length>1)break;
+                const clone=parent.cloneNode(true);
+                Array.from(clone.querySelectorAll('label,b,strong,span,div,p,h3,h4,h5')).filter(title).forEach(el=>el.remove());
+                const body=referralNodeText(clone).trim();
+                if(body) {values.add(cleanReferralDiseases(body));break;}
+            }
+        }
+        if(values.size===1)return Array.from(values)[0];
+        // Source script fallback, only on conclusion page and only if unambiguous.
+        if(!headings.length && getCurrentTabTitle().includes('kết luận')) {
+            const blocks=Array.from(document.querySelectorAll('div[style]')).filter(el=>visible(el) &&
+                /(?:#?263238|rgb\(\s*38\s*,\s*50\s*,\s*56\s*\))/i.test(el.getAttribute('style')||''));
+            if(blocks.length===1)return cleanReferralDiseases(referralNodeText(blocks[0]));
+        }
+        return '';
+    }
+    // One routing table for all recorded diseases. Code rules take priority over text.
+    const REFERRAL_ROUTING = [
+        {name:'Mắt',codes:[['H',0,59]],words:/khuc xa|can thi|vien thi|loan thi|duc thuy tinh|glocom|glaucoma|ket mac|giac mac|vong mac|giam thi luc|benh mat/},
+        {name:'Răng Hàm Mặt',codes:[['K',0,14]],words:/sau rang|viem loi|viem nuou|nha chu|rang ham mat|mat rang|viem tuy rang/},
+        {name:'Tai Mũi Họng',codes:[['H',60,95],['J',0,6],['J',30,39]],words:/viem xoang|viem mui|viem hong|viem tai|amidan|giam thinh luc|tai mui hong|polyp mui/},
+        {name:'Nội tiết',codes:[['E',0,35],['E',65,68],['E',78,78]],words:/dai thao duong|tieu duong|tuyen giap|cuong giap|suy giap|buou giap|roi loan lipid|roi loan mo mau|beo phi/},
+        {name:'Nội tim mạch',codes:[['I',0,52]],words:/tang huyet ap|benh tim|suy tim|mach vanh|roi loan nhip|rung nhi|benh van tim/},
+        {name:'Nội thận lọc máu',codes:[['N',0,19],['N',25,29]],words:/suy than|benh than|viem cau than|than man|hoi chung than hu/},
+        {name:'Nội Thần kinh Cơ xương khớp',codes:[['G',0,99],['M',0,99],['I',60,69]],words:/dau dau|dau nua dau|dong kinh|parkinson|dau khop|viem khop|thoai hoa|cot song|\bgout\b|\bgut\b|loang xuong|dot quy|tai bien mach mau nao/},
+        {name:'Da liễu',codes:[['L',0,99],['B',35,36]],words:/viem da|benh da|nam da|vay nen|cham da|me day|mun trung ca/},
+        {name:'Ngoại chấn thương chỉnh hình',codes:[],words:/gay xuong|chan thuong (xuong|khop|chi)|trat khop|bong gan/},
+        {name:'Sản phụ khoa',codes:[['N',70,98],['O',0,99]],words:/phu khoa|viem am dao|u xo tu cung|u nang buong trung|roi loan kinh nguyet/},
+        {name:'Truyền nhiễm',codes:[['B',15,24]],words:/viem gan (b|c|virus|sieu vi)|sot xuat huyet|sot ret|hiv/},
+        {name:'Ngoại tổng hợp',codes:[['K',35,46],['K',80,83]],words:/thoat vi ben|tri noi|tri ngoai|benh tri|soi tui mat|viem ruot thua/},
+        {name:'Nội tổng hợp',codes:[['D',50,89],['J',10,22],['J',40,99],['K',20,31],['K',50,67],['K',70,77]],words:/thieu mau|viem da day|trao nguoc|viem gan khong|gan nhiem mo|hen phe quan|benh phoi tac nghen|viem phe quan/},
+        {name:'Nhi',codes:[],words:/kham nhi|chuyen khoa nhi|benh ly nhi khoa/}
+    ];
+    function analyzeReferralDepartments(diseases, findings) {
+        const selected=new Set(),unknown=[];
+        for(const part of cleanReferralDiseases(diseases).split(/;|\n/)) {
+            const plain=referralPlain(part);
+            if(!plain || /^(khong|chua phat hien|loai tru)\b/.test(plain))continue;
+            const codes=Array.from(plain.matchAll(/\b([a-z])(\d{2})(?:\.\d+)?\b/g));
+            const routed=new Set();
+            let unmatchedCode=false;
+            for(const match of codes) {
+                let codeMatched=false;
+                const letter=match[1].toUpperCase(),n=Number(match[2]);
+                for(const rule of REFERRAL_ROUTING)if(rule.codes.some(([prefix,low,high])=>letter===prefix && n>=low && n<=high)){routed.add(rule.name);codeMatched=true;}
+                // Limb injuries route to orthopaedics; head/chest/abdomen injuries stay for user review.
+                if(letter==='S' && n>=40 && n<=99){routed.add('Ngoại chấn thương chỉnh hình');codeMatched=true;}
+                if(!codeMatched)unmatchedCode=true;
+            }
+            // Unknown ICD must not be overruled by a loose word match.
+            if(!codes.length)for(const rule of REFERRAL_ROUTING)if(rule.words.test(plain))routed.add(rule.name);
+            if(!routed.size || unmatchedCode)unknown.push(part);
+            routed.forEach(name=>selected.add(name));
+        }
+        for(const finding of findings||[]) {
+            if(!['action','urgent'].includes(finding.level))continue;
+            const key=String(finding.key||finding.code||''),label=referralPlain(finding.label||'');
+            if(/glucose|duong mau/.test(label) || key==='Glucose')selected.add('Nội tiết');
+            else if(/creatinin|\bure\b|protein nieu|hong cau nieu/.test(label) || ['Creatinin','Ure','PRO','BLD'].includes(key))selected.add('Nội thận lọc máu');
+            else selected.add('Nội tổng hợp');
+        }
+        return {departments:REFERRAL_DEPARTMENTS.filter(name=>selected.has(name)),unknown};
+    }
+    function suggestReferralDepartments(diseases,findings) {
+        return analyzeReferralDepartments(diseases,findings).departments;
+    }
+    const REFERRAL_PUBLIC_GROUPS = {
+        'Nội tổng hợp':'nội khoa',
+        'Nội tiết':'nội tiết',
+        'Nội tim mạch':'tim mạch',
+        'Nội thận lọc máu':'thận',
+        'Nội Thần kinh Cơ xương khớp':'thần kinh hoặc cơ xương khớp',
+        'Mắt':'mắt',
+        'Răng Hàm Mặt':'răng hàm mặt',
+        'Tai Mũi Họng':'tai mũi họng',
+        'Da liễu':'da',
+        'Ngoại tổng hợp':'ngoại khoa',
+        'Ngoại chấn thương chỉnh hình':'chấn thương chỉnh hình',
+        'Sản phụ khoa':'sản phụ khoa',
+        'Nhi':'sức khỏe trẻ em'
+    };
+    function buildPublicDiseaseObservation(diseases) {
+        const cleaned=cleanReferralDiseases(diseases);
+        if(!cleaned)return '';
+        const routing=analyzeReferralDepartments(cleaned,[]);
+        const groups=[...new Set(routing.departments.map(name=>REFERRAL_PUBLIC_GROUPS[name]).filter(Boolean))];
+        const phrases=[];
+        if(groups.length) {
+            const joined=groups.length===1?groups[0]:groups.slice(0,-1).join(', ')+' và '+groups[groups.length-1];
+            phrases.push('bất thường về '+joined);
+        }
+        // Unmapped conditions and infectious conditions retain a general description,
+        // without exposing ICD codes or converting a preliminary diagnosis into a definite disease.
+        if(routing.unknown.length || routing.departments.includes('Truyền nhiễm'))phrases.push(phrases.length?'một số bất thường khác cần được kiểm tra thêm':'bất thường cần được kiểm tra thêm');
+        if(!phrases.length)return '';
+        return 'Kết quả khám ghi nhận '+phrases.join(' và ')+'.';
+    }
+    function buildCombinedReferralObservation(diseases, findings) {
+        return [buildPublicDiseaseObservation(diseases),buildReferralObservation(findings)].filter(Boolean).join('\n');
+    }
+    function buildReferralProposal(observation, departments) {
+        const chosen=REFERRAL_DEPARTMENTS.filter(name=>(departments||[]).includes(name));
+        const first=String(observation||'').trim();
+        if(!chosen.length)return '';
+        const names=chosen.length===1?chosen[0]:chosen.slice(0,-1).join(', ')+' và '+chosen[chosen.length-1];
+        return (first?first+'\n':'')+'Đề nghị người dân đến khám chuyên khoa '+names+
+            ' tại Bệnh viện Đa khoa khu vực Hóc Môn để được khám và tư vấn chi tiết hơn.';
+    }
+    function ensureReferralComposerStyles() {
+        if(document.getElementById('medinet-referral-style'))return;
+        const style=document.createElement('style');style.id='medinet-referral-style';
+        style.textContent=`
+        #medinet-auto-dock-panel .rfc {font:13px/1.5 'Segoe UI',Arial,sans-serif!important;color:#263952!important;white-space:normal!important;min-width:0!important}
+        #medinet-auto-dock-panel .rfc * {box-sizing:border-box!important;white-space:normal!important}
+        #medinet-auto-dock-panel .rfc-note {margin:0 0 14px!important;color:#62748a!important;font-size:12px!important}
+        #medinet-auto-dock-panel .rfc-label {display:block!important;font-weight:700!important;margin:14px 0 7px!important;color:#24435e!important}
+        #medinet-auto-dock-panel .rfc-grid {display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important}
+        #medinet-auto-dock-panel .rfc-department {border:1px solid #d7e4ed!important;background:#f6faff!important;border-radius:9px!important;padding:9px 10px!important;font:600 12px/1.35 'Segoe UI',Arial,sans-serif!important;color:#36516b!important;text-align:left!important;cursor:pointer!important;min-height:40px!important;box-shadow:none!important;transition:background .12s,border-color .12s!important}
+        #medinet-auto-dock-panel .rfc-department:hover {border-color:#71b8e8!important;background:#edf7ff!important}
+        #medinet-auto-dock-panel .rfc-department[aria-pressed=true] {background:#e1f1ff!important;color:#075a96!important;border-color:#329ad7!important;box-shadow:inset 3px 0 #329ad7!important}
+        #medinet-auto-dock-panel .rfc textarea {display:block!important;width:100%!important;min-width:0!important;border:1px solid #cfdee9!important;border-radius:9px!important;background:#fff!important;color:#263952!important;padding:10px!important;font:13px/1.55 'Segoe UI',Arial,sans-serif!important;white-space:pre-wrap!important;resize:vertical!important;outline-color:#329ad7!important}
+        #medinet-auto-dock-panel .rfc-observation {min-height:82px!important}
+        #medinet-auto-dock-panel .rfc-preview {min-height:115px!important;background:#f5faff!important}
+        #medinet-auto-dock-panel .rfc-actions {display:flex!important;flex-wrap:wrap!important;gap:8px!important;margin-top:12px!important}
+        #medinet-auto-dock-panel .rfc-actions button {border:1px solid #c9deeb!important;border-radius:8px!important;padding:9px 12px!important;background:#f5faff!important;color:#23618b!important;font:700 12px 'Segoe UI',Arial,sans-serif!important;cursor:pointer!important}
+        #medinet-auto-dock-panel .rfc-actions .rfc-fill {background:#1687c4!important;border-color:#1687c4!important;color:#fff!important}
+        #medinet-auto-dock-panel .rfc button:disabled {opacity:.45!important;cursor:default!important}
+        #medinet-auto-dock-panel .rfc button:focus-visible {outline:2px solid #1687c4!important;outline-offset:2px!important}
+        #medinet-auto-dock-panel .rfc-status {display:block!important;min-height:20px!important;margin-top:9px!important;color:#47647b!important;font-size:12px!important}
+        #medinet-auto-dock-panel .rfc-urgent {background:#fff0ed!important;border:1px solid #edb6ad!important;color:#9a362a!important;padding:9px!important;border-radius:8px!important;margin-bottom:12px!important}
+
+        #medinet-auto-dock-panel .rfc .rfc-label {margin:9px 0 5px!important}
+        #medinet-auto-dock-panel .rfc .rfc-grid {gap:5px!important}
+        #medinet-auto-dock-panel .rfc .rfc-department {padding:6px 8px!important;min-height:32px!important}
+        #medinet-auto-dock-panel .rfc .rfc-observation {min-height:56px!important;height:64px!important;padding:7px 9px!important}
+        #medinet-auto-dock-panel .rfc .rfc-preview {min-height:76px!important;height:88px!important;padding:7px 9px!important}
+        #medinet-auto-dock-panel .rfc .rfc-footer {position:sticky!important;bottom:0!important;background:#fff!important;padding:8px 0 0!important;z-index:3!important;border-top:1px solid #e1ebf2!important;margin-top:9px!important}
+        #medinet-auto-dock-panel .rfc .rfc-actions {margin-top:0!important;gap:5px!important}
+        #medinet-auto-dock-panel .rfc .rfc-actions button {padding:7px 9px!important}
+        #medinet-auto-dock-panel .rfc .rfc-status:empty {display:none!important}
+        #medinet-auto-dock-panel .rfc .rfc-status {margin-top:5px!important;min-height:0!important}
+        #medinet-auto-dock-panel .rfc .rfc-review {margin:0 0 7px!important;font-size:12px!important;color:#62748a!important}
+        #medinet-auto-dock-panel .rfc .rfc-review summary {cursor:pointer!important}
+        #medinet-auto-dock-panel .rfc .rfc-review div {padding:6px 0!important}
+        `;
+        document.head.appendChild(style);
+    }
+    function readReferralTarget(target) {
+        return target.matches('.ql-editor') ? target.innerText.replace(/\n+$/,'') : target.value;
+    }
+    async function writeReferralTarget(target, text) {
+        if(!isReferralPortalControl(target))throw new Error('Không tìm thấy ô Đề nghị có thể điền.');
+        if(target.matches('.ql-editor')) {
+            const host=target.closest('.dx-htmleditor'),container=target.closest('.ql-container');
+            let instance=null,quill=container && container.__quill;
+            try {
+                const api=window.DevExpress && window.DevExpress.ui && window.DevExpress.ui.dxHtmlEditor;
+                if(api && api.getInstance)instance=api.getInstance(host);
+            }catch(ignore){}
+            if(!instance && window.jQuery && host) {
+                try{instance=window.jQuery(host).dxHtmlEditor('instance');}catch(ignore){}
+            }
+            if(instance && typeof instance.getQuillInstance==='function')quill=instance.getQuillInstance();
+            if(!quill && window.Quill && typeof window.Quill.find==='function') {
+                try{quill=window.Quill.find(container);}catch(ignore){}
+            }
+            const clean=value=>String(value||'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
+            const html=text.split(/\r?\n/).map(line=>'<p>'+(line?clsEscape(line):'<br>')+'</p>').join('');
+            target.focus();
+            if(quill && typeof quill.setText==='function')quill.setText(text,'user');
+            else if(instance)instance.option('value',html);
+            else {
+                const selection=window.getSelection(),range=document.createRange();
+                range.selectNodeContents(target);selection.removeAllRanges();selection.addRange(range);
+                let inserted=false;
+                try{inserted=document.execCommand('insertText',false,text);}catch(ignore){}
+                if(!inserted) {
+                    // Quill's own MutationObserver imports the document changes into its model.
+                    target.innerHTML=html;
+                    target.classList.remove('ql-blank');
+                }
+                selection.removeAllRanges();
+            }
+            target.dispatchEvent(new Event('input',{bubbles:true}));
+            await sleep(100); // Quill/Angular update asynchronously.
+            target.dispatchEvent(new Event('change',{bubbles:true}));
+            target.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true}));
+            target.blur();
+            target.dispatchEvent(new FocusEvent('focusout',{bubbles:true}));
+            await sleep(80);
+            if(!target.isConnected)target=findReferralTarget();
+            if(!target || clean(readReferralTarget(target))!==clean(text))throw new Error('Ô Đề nghị chưa giữ được nội dung. Vui lòng gửi thông báo này để kiểm tra.');
+            if(quill && typeof quill.getText==='function' && clean(quill.getText())!==clean(text))throw new Error('Bộ soạn thảo chưa cập nhật nội dung Đề nghị.');
+            return;
+        }
+        const proto=target.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;
+        const setter=Object.getOwnPropertyDescriptor(proto,'value').set;
+        const host=target.closest('.dx-textarea,.dx-textbox');
+        let instance=null;
+        try {
+            const api=window.DevExpress && window.DevExpress.ui;
+            const widget=host && api && (host.classList.contains('dx-textarea')?api.dxTextArea:api.dxTextBox);
+            if(widget && widget.getInstance)instance=widget.getInstance(host);
+        } catch(ignore){}
+        if(!instance && host && window.jQuery) {
+            try {instance=window.jQuery(host)[host.classList.contains('dx-textarea')?'dxTextArea':'dxTextBox']('instance');}catch(ignore){}
+        }
+        target.focus();
+        if(instance)instance.option('value',text);
+        setter.call(target,text);
+        target.dispatchEvent(new Event('input',{bubbles:true}));
+        target.dispatchEvent(new Event('change',{bubbles:true}));
+        target.blur();
+        if(target.value!==text)throw new Error('Ô Đề nghị chưa nhận nội dung; dùng Sao chép để dán thủ công.');
+    }
+    function showReferralComposer() {
+        if(!isReferralConclusionPage())return;
+        restoreLastCanLamSangReport();
+        const patientKey=getCurrentPatientKey();
+        const context=getAutoUiContextKey();
+        const report=patientKey && lastCanLamSangReportPatientKey===patientKey?lastCanLamSangReport:null;
+        const findings=report && report.findings || [];
+        const diseases=readReferralDiseases();
+        const initial=buildCombinedReferralObservation(diseases,findings);
+        const routing=analyzeReferralDepartments(diseases,findings);
+        const suggestions=routing.departments;
+        const sourceKey=JSON.stringify(['7.98',diseases,initial,suggestions]);
+        const saved=referralDrafts.get(context);
+        const draft=saved && saved.sourceKey===sourceKey?saved:{observation:initial,departments:suggestions};
+        const urgent=findings.some(f=>f.level==='urgent');
+        const html='<div class="rfc">'+
+            (routing.unknown.length?'<details class="rfc-review"><summary>'+routing.unknown.length+' mục chưa gợi ý khoa</summary><div>'+clsEscape(routing.unknown.join('; '))+'</div></details>':'')+
+            (urgent?'<div class="rfc-urgent">Có kết quả cần được đánh giá ngay.</div>':'')+
+            '<label class="rfc-label" for="rfc-observation">Nội dung ghi nhận</label><textarea id="rfc-observation" class="rfc-observation" placeholder="Nhập nội dung cần ghi nhận nếu có…">'+clsEscape(draft.observation)+'</textarea>'+
+            '<div class="rfc-label" id="rfc-department-label">Khoa khám</div><div class="rfc-grid" role="group" aria-labelledby="rfc-department-label">'+
+            REFERRAL_DEPARTMENTS.map((name,index)=>'<button type="button" class="rfc-department" data-index="'+index+'" aria-pressed="'+draft.departments.includes(name)+'">'+clsEscape(name)+'</button>').join('')+'</div>'+
+            '<label class="rfc-label" for="rfc-preview">Lời đề nghị</label><textarea id="rfc-preview" class="rfc-preview" readonly placeholder="Chọn khoa khám để tạo lời đề nghị."></textarea>'+
+            '<div class="rfc-footer"><div class="rfc-actions"><button class="rfc-fill" type="button">Điền vào đề nghị</button><button class="rfc-copy" type="button">Sao chép</button><button class="rfc-pick" type="button">Chọn ô trên phiếu</button><button class="rfc-clear" type="button">Bỏ chọn khoa</button></div>'+
+            '<div class="rfc-status" role="status" aria-live="polite"></div></div></div>';
+        const panel=showAutoDockPanel('Đề nghị khám · v7.98',html,'info',0);
+        if(!panel)return;
+        panel.classList.add('madp-long');ensureReferralComposerStyles();
+        const observation=panel.querySelector('.rfc-observation'),preview=panel.querySelector('.rfc-preview'),status=panel.querySelector('.rfc-status');
+        const chosen=new Set(draft.departments);
+        const buttons=Array.from(panel.querySelectorAll('.rfc-department'));
+        const current=()=>panel.isConnected && getAutoUiContextKey()===context && getCurrentPatientKey()===patientKey && isReferralConclusionPage();
+        const refresh=()=>{
+            preview.value=buildReferralProposal(observation.value,Array.from(chosen));
+            panel.querySelector('.rfc-fill').disabled=!preview.value;
+            panel.querySelector('.rfc-copy').disabled=!preview.value;
+            status.textContent='';
+            referralDrafts.set(context,{observation:observation.value,departments:Array.from(chosen),sourceKey});
+            if(referralDrafts.size>20)referralDrafts.delete(referralDrafts.keys().next().value);
+        };
+        for(const button of buttons)button.addEventListener('click',()=>{
+            const name=REFERRAL_DEPARTMENTS[Number(button.dataset.index)];
+            if(chosen.has(name))chosen.delete(name);else chosen.add(name);
+            button.setAttribute('aria-pressed',String(chosen.has(name)));refresh();
+        });
+        observation.addEventListener('input',refresh);
+        panel.querySelector('.rfc-clear').addEventListener('click',()=>{chosen.clear();buttons.forEach(button=>button.setAttribute('aria-pressed','false'));refresh();});
+        let pickedTarget=null,busy=false;
+        const pickButton=panel.querySelector('.rfc-pick');
+        pickButton.addEventListener('click',()=>{
+            if(!current()) {status.textContent='Hồ sơ đã thay đổi. Mở lại Đề nghị khám.';return;}
+            status.textContent='Bấm vào bên trong ô Đề nghị (ghi rõ) trên phiếu.';
+            const timeout=setTimeout(cancel,15000);
+            function cancel(){document.removeEventListener('click',choose,true);clearTimeout(timeout);}
+            function choose(event){
+                if(!current()){cancel();return;}
+                if(event.target.closest('#medinet-auto-dock-panel'))return;
+                const clicked=event.target.closest('.ql-editor[contenteditable="true"],textarea,input');
+                if(!isReferralPortalControl(clicked))return;
+                pickedTarget=clicked;cancel();
+                status.textContent='Đã chọn ô trên phiếu. Bấm “Điền vào đề nghị”.';
+            }
+            document.addEventListener('click',choose,true);
+        });
+        panel.querySelector('.rfc-fill').addEventListener('click',async()=>{
+            if(busy)return;
+            const button=panel.querySelector('.rfc-fill');
+            try {
+                if(!current())throw new Error('Hồ sơ hoặc mục khám đã thay đổi. Mở lại Đề nghị khám.');
+                const text=preview.value;if(!text)return;
+                busy=true;button.disabled=true;status.textContent='Đang nhận diện ô và điền nội dung…';
+                let target=pickedTarget && pickedTarget.isConnected && isReferralPortalControl(pickedTarget)?pickedTarget:null;
+                for(let retry=0;!target && retry<5;retry++) {
+                    if(!current())throw new Error('Hồ sơ đã thay đổi. Dừng điền nội dung.');
+                    target=findReferralTarget();if(!target)await sleep(120);
+                }
+                if(!target)throw new Error('Chưa nhận diện được ô. Bấm “Chọn ô trên phiếu”, rồi bấm vào ô Đề nghị (ghi rõ).');
+                const before=readReferralTarget(target);
+                if(before.trim() && before.replace(/\s+/g,' ').trim()!==text.replace(/\s+/g,' ').trim() && !(await showModal({title:'Thay nội dung Đề nghị?',bodyHtml:'Ô Đề nghị đang có nội dung. Bạn muốn thay bằng lời đề nghị vừa tạo?',buttons:[{label:'Giữ nội dung cũ',value:false},{label:'Thay nội dung',value:true,primary:true}]}))) {status.textContent='Đã giữ nội dung hiện tại.';return;}
+                if(!current())throw new Error('Hồ sơ đã thay đổi. Dừng điền nội dung.');
+                await writeReferralTarget(target,text);
+                if(!current())throw new Error('Hồ sơ đã thay đổi trong lúc điền. Kiểm tra lại phiếu.');
+                status.textContent='Đã điền vào Đề nghị. Kiểm tra và bấm “Lưu thay đổi” trên phiếu.';
+            }catch(error){status.textContent=error.message||'Không điền được nội dung. Chọn lại ô trên phiếu.';console.warn(LOG,'Đề nghị:',error);status.scrollIntoView({block:'nearest'});}
+            finally{busy=false;if(panel.isConnected)button.disabled=!preview.value;}
+        });
+        panel.querySelector('.rfc-copy').addEventListener('click',async()=>{
+            if(!current()) {status.textContent='Hồ sơ hoặc mục khám đã thay đổi. Mở lại Đề nghị khám.';return;}
+            if(!preview.value)return;
+            try {await navigator.clipboard.writeText(preview.value);status.textContent='Đã sao chép lời đề nghị.';}
+            catch(ignore) {preview.focus();preview.select();let ok=false;try{ok=document.execCommand('copy');}catch(ignore){}status.textContent=ok?'Đã sao chép lời đề nghị.':'Đã chọn nội dung; nhấn Ctrl+C để sao chép.';}
+        });
+        refresh();requestAnimationFrame(()=>layoutAutoDockPanel(panel));
+    }
 
     function ensureUnifiedAutoV780Styles() {
         if (document.getElementById('medinet-auto-v780-style')) return;
@@ -16175,6 +16884,8 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
                     return;
                 }
 
+                if(isReferralConclusionPage()) {showReferralComposer();return;}
+
                 // Có cảnh báo: bất kỳ cú nhấn nào trên reactor đều mở menu
                 // chọn AUTO mục hiện tại / Xem cảnh báo.
                 if (hasCurrentCanLamSangWarning()) {
@@ -16414,7 +17125,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         );
 
         log(
-            '✅ MEDINET AUTO M2-M6 UNIFIED READY v7.42'
+            '✅ MEDINET AUTO M2-M6 UNIFIED READY v7.85'
         );
 
         log(
