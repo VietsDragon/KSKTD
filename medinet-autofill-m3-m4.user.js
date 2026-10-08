@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      8.0
+// @version      8.88
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -7947,6 +7947,15 @@ async function autoM2KhamLamSang() {
         'medinet-auto-last-cls-report-v788';
 
     // Chọn loại khám trước khi điền CLS; xác nhận trạng thái thật của phiếu.
+    function isM4WithoutLabExamType() {
+        if (String(getCurrentMedinetModel() || '').toUpperCase() !== 'M4') return false;
+        const labels = ['loại khám', 'khám định kỳ', 'khám tuyển'];
+        return ![...document.querySelectorAll('label, span, b, div, input')].some(el => {
+            if (el.closest('.mnm-overlay, .dx-state-invisible, [hidden], [aria-hidden="true"]') || !el.getClientRects().length) return false;
+            return labels.includes(norm(el.textContent)) || labels.includes(norm(el.getAttribute('aria-label')));
+        });
+    }
+
     function findLabExamTypeControl(label) {
         const visible = el => el && !el.closest('.mnm-overlay, .dx-state-invisible, [hidden], [aria-hidden="true"]') && el.getClientRects().length;
         const own = [...document.querySelectorAll('.dx-checkbox')].filter(el =>
@@ -8259,7 +8268,8 @@ async function autoM2KhamLamSang() {
 
 
         const examContextKey = getAutoUiContextKey();
-        const examType = await showModal({
+        const m4WithoutExamType = isM4WithoutLabExamType();
+        const examType = m4WithoutExamType ? 'periodic' : await showModal({
             title: 'Chọn loại khám',
             bodyHtml: '<div>Điền xét nghiệm cho loại khám nào?</div>',
             buttons: [
@@ -8271,13 +8281,13 @@ async function autoM2KhamLamSang() {
         if (!examType) return;
         let scope;
         try {
-            await applyLabExamType(examType, examContextKey);
+            if (!m4WithoutExamType) await applyLabExamType(examType, examContextKey);
             // Chờ trang cập nhật các trường tương ứng sau khi đổi loại khám.
             await sleep(200);
             if (getAutoUiContextKey() !== examContextKey) throw new Error('Phiếu đã thay đổi. Vui lòng chạy lại.');
             scope = getKhungScope(examType === 'recruit'
                 ? 'khám phân loại sức khỏe' : 'khám sức khỏe định kỳ');
-            if (!scope && findNumberedSectionHeaders().length > 1)
+            if (!m4WithoutExamType && !scope && findNumberedSectionHeaders().length > 1)
                 throw new Error('Chưa xác định được khung xét nghiệm của loại khám đã chọn.');
         } catch (e) {
             await infoModal('Chưa điền xét nghiệm', '<div>' + String(e.message).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>', 'mnm-warn');
@@ -16544,7 +16554,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         const initial=buildCombinedReferralObservation(diseases,findings);
         const routing=analyzeReferralDepartments(diseases,findings);
         const suggestions=routing.departments;
-        const sourceKey=JSON.stringify(['7.99',diseases,initial,suggestions]);
+        const sourceKey=JSON.stringify(['7.99.1',diseases,initial,suggestions]);
         const saved=referralDrafts.get(context);
         const draft=saved && saved.sourceKey===sourceKey?saved:{observation:initial,departments:suggestions};
         const urgent=findings.some(f=>f.level==='urgent');
@@ -16557,7 +16567,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
             '<label class="rfc-label" for="rfc-preview">Lời đề nghị</label><textarea id="rfc-preview" class="rfc-preview" readonly placeholder="Chọn khoa khám để tạo lời đề nghị."></textarea>'+
             '<div class="rfc-footer"><div class="rfc-actions"><button class="rfc-fill" type="button">Điền vào đề nghị</button><button class="rfc-copy" type="button">Sao chép</button><button class="rfc-pick" type="button">Chọn ô trên phiếu</button><button class="rfc-clear" type="button">Bỏ chọn khoa</button></div>'+
             '<div class="rfc-status" role="status" aria-live="polite"></div></div></div>';
-        const panel=showAutoDockPanel('Đề nghị khám · v7.99',html,'info',0);
+        const panel=showAutoDockPanel('Đề nghị khám · v7.99.1',html,'info',0);
         if(!panel)return;
         panel.classList.add('madp-long');ensureReferralComposerStyles();
         const observation=panel.querySelector('.rfc-observation'),preview=panel.querySelector('.rfc-preview'),status=panel.querySelector('.rfc-status');
