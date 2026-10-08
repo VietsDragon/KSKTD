@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      7.98
+// @version      8.0
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -7946,6 +7946,62 @@ async function autoM2KhamLamSang() {
     const LAST_CLS_REPORT_STORAGE_KEY =
         'medinet-auto-last-cls-report-v788';
 
+    // Chọn loại khám trước khi điền CLS; xác nhận trạng thái thật của phiếu.
+    function findLabExamTypeControl(label) {
+        const visible = el => el && !el.closest('.mnm-overlay, .dx-state-invisible, [hidden], [aria-hidden="true"]') && el.getClientRects().length;
+        const own = [...document.querySelectorAll('.dx-checkbox')].filter(el =>
+            visible(el) && norm(el.querySelector('.dx-checkbox-text')?.textContent || el.getAttribute('aria-label')) === norm(label));
+        if (own.length === 1) return own[0];
+        if (own.length > 1) throw new Error('Có nhiều ô ' + label + ', chưa xác định được duy nhất.');
+        const candidates = new Set();
+        for (const node of document.querySelectorAll('label, span, b, div')) {
+            if (!visible(node) || norm(node.textContent) !== norm(label)) continue;
+            let parent = node;
+            for (let i = 0; parent && i < 5; i++, parent = parent.parentElement) {
+                const controls = [...parent.querySelectorAll('.dx-checkbox, input[type="checkbox"], input[type="radio"]')].filter(visible);
+                if (controls.length === 1) { candidates.add(controls[0]); break; }
+                if (controls.length > 1) break;
+            }
+        }
+        if (candidates.size !== 1) throw new Error('Chưa nhận diện duy nhất ô ' + label + '.');
+        return [...candidates][0];
+    }
+
+    function labExamTypeChecked(el) {
+        return el.matches('input') ? el.checked :
+            el.getAttribute('aria-checked') === 'true' || el.classList.contains('dx-checkbox-checked');
+    }
+
+    async function applyLabExamType(type, contextKey) {
+        const chosen = type === 'recruit' ? 'Khám Tuyển' : 'Khám Định Kỳ';
+        const other = type === 'recruit' ? 'Khám Định Kỳ' : 'Khám Tuyển';
+        const guard = () => {
+            if (getAutoUiContextKey() !== contextKey) throw new Error('Phiếu đã thay đổi. Vui lòng chạy lại trên phiếu cần điền.');
+        };
+        guard();
+        // Nhận diện cả hai trước khi thay đổi bất kỳ ô nào.
+        const a = findLabExamTypeControl(chosen), b = findLabExamTypeControl(other);
+        if (a === b) throw new Error('Hai loại khám trỏ cùng một ô, chưa thể điền.');
+        const set = async (label, checked) => {
+            guard();
+            const el = findLabExamTypeControl(label);
+            if (el.disabled || el.classList.contains('dx-state-disabled') || el.getAttribute('aria-disabled') === 'true')
+                throw new Error('Ô ' + label + ' đang bị khóa.');
+            if (labExamTypeChecked(el) !== checked) el.click();
+            for (let i = 0; i < 20; i++) {
+                await sleep(100);
+                guard();
+                try { if (labExamTypeChecked(findLabExamTypeControl(label)) === checked) return; } catch (e) { if (i === 19) throw e; }
+            }
+            throw new Error('Chưa xác nhận chọn ' + label + ' thành công.');
+        };
+        await set(chosen, true);
+        await set(other, false);
+        guard();
+        if (!labExamTypeChecked(findLabExamTypeControl(chosen)) || labExamTypeChecked(findLabExamTypeControl(other)))
+            throw new Error('Loại khám chưa khớp lựa chọn.');
+    }
+
     async function autoCanLamSang() {
 
         const searchInput =
@@ -8202,16 +8258,36 @@ async function autoM2KhamLamSang() {
         }
 
 
-        // Xác định khung 2 (M3 có 2 khung, M4 chỉ 1 khung)
-        const scope =
-            getKhungScope(
-                'khám sức khỏe định kỳ'
-            );
+        const examContextKey = getAutoUiContextKey();
+        const examType = await showModal({
+            title: 'Chọn loại khám',
+            bodyHtml: '<div>Điền xét nghiệm cho loại khám nào?</div>',
+            buttons: [
+                { label: 'Hủy', value: null },
+                { label: 'Khám tuyển', value: 'recruit', primary: true },
+                { label: 'Khám định kỳ', value: 'periodic', primary: true }
+            ]
+        });
+        if (!examType) return;
+        let scope;
+        try {
+            await applyLabExamType(examType, examContextKey);
+            // Chờ trang cập nhật các trường tương ứng sau khi đổi loại khám.
+            await sleep(200);
+            if (getAutoUiContextKey() !== examContextKey) throw new Error('Phiếu đã thay đổi. Vui lòng chạy lại.');
+            scope = getKhungScope(examType === 'recruit'
+                ? 'khám phân loại sức khỏe' : 'khám sức khỏe định kỳ');
+            if (!scope && findNumberedSectionHeaders().length > 1)
+                throw new Error('Chưa xác định được khung xét nghiệm của loại khám đã chọn.');
+        } catch (e) {
+            await infoModal('Chưa điền xét nghiệm', '<div>' + String(e.message).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>', 'mnm-warn');
+            return;
+        }
 
         if (scope) {
 
             log(
-                'Đã xác định khung "2. Khám sức khỏe định kỳ" - CHỈ điền trong khung này'
+                'Đã xác định khung xét nghiệm theo loại khám đã chọn - CHỈ điền trong khung này'
             );
 
         } else {
@@ -16468,7 +16544,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         const initial=buildCombinedReferralObservation(diseases,findings);
         const routing=analyzeReferralDepartments(diseases,findings);
         const suggestions=routing.departments;
-        const sourceKey=JSON.stringify(['7.98',diseases,initial,suggestions]);
+        const sourceKey=JSON.stringify(['7.99',diseases,initial,suggestions]);
         const saved=referralDrafts.get(context);
         const draft=saved && saved.sourceKey===sourceKey?saved:{observation:initial,departments:suggestions};
         const urgent=findings.some(f=>f.level==='urgent');
@@ -16481,7 +16557,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
             '<label class="rfc-label" for="rfc-preview">Lời đề nghị</label><textarea id="rfc-preview" class="rfc-preview" readonly placeholder="Chọn khoa khám để tạo lời đề nghị."></textarea>'+
             '<div class="rfc-footer"><div class="rfc-actions"><button class="rfc-fill" type="button">Điền vào đề nghị</button><button class="rfc-copy" type="button">Sao chép</button><button class="rfc-pick" type="button">Chọn ô trên phiếu</button><button class="rfc-clear" type="button">Bỏ chọn khoa</button></div>'+
             '<div class="rfc-status" role="status" aria-live="polite"></div></div></div>';
-        const panel=showAutoDockPanel('Đề nghị khám · v7.98',html,'info',0);
+        const panel=showAutoDockPanel('Đề nghị khám · v7.99',html,'info',0);
         if(!panel)return;
         panel.classList.add('madp-long');ensureReferralComposerStyles();
         const observation=panel.querySelector('.rfc-observation'),preview=panel.querySelector('.rfc-preview'),status=panel.querySelector('.rfc-status');
