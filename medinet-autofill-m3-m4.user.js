@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto KSK TD
 // @namespace    medinet-autofill-m3-m4
-// @version      9.99
+// @version      99.99
 // @description  Tự Động Điền KSK TD
 // @match        https://quanlyskcd.medinet.org.vn/*
 // @grant        none
@@ -3336,54 +3336,42 @@ async function autoM2KhamLamSang() {
                 dateLabel.className = 'mnm-input-label';
                 dateLabel.textContent = 'Ngày xét nghiệm';
                 const inputLabDate = document.createElement('input');
-                inputLabDate.type = 'date';
+                inputLabDate.type = 'text';
                 inputLabDate.className = 'mnm-input';
-                const labFormKey = getCurrentPatientKey() + '|' + getAutoUiContextKey();
-                const visitDate = readLabVisitDate();
-                inputLabDate.value = labSearchDateForForm(labFormKey, visitDate);
-                const dateActions = document.createElement('div');
-                dateActions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:8px 0';
-                const quickDateButtons = [];
-                const rememberDate = () => {
-                    const currentKey = getCurrentPatientKey() + '|' + getAutoUiContextKey();
-                    if (currentKey === labFormKey) labSearchDateMemory = { key: labFormKey, date: labDateISO(inputLabDate.value) };
+                inputLabDate.placeholder = 'dd/mm/yyyy';
+                inputLabDate.inputMode = 'numeric';
+                const displayLabDate = value => {
+                    const iso = labDateISO(value);
+                    return iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
                 };
-                const addDateButton = (label, action) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'mnm-btn mnm-btn-secondary';
-                    button.textContent = label;
-                    button.addEventListener('click', () => {
-                        const date = action();
-                        if (!date) { sidPreview.textContent = 'Chọn ngày trước khi điều chỉnh.'; inputLabDate.focus(); return; }
-                        inputLabDate.value = date;
-                        rememberDate();
-                        updateSidPreview();
-                        inputSid.focus();
-                    });
-                    quickDateButtons.push(button);
-                    dateActions.appendChild(button);
-                    return button;
-                };
-                const visitDateButton = addDateButton('Ngày khám', () => visitDate);
-                addDateButton('−1 ngày', () => shiftLabSearchDate(inputLabDate.value, -1));
-                addDateButton('+1 ngày', () => shiftLabSearchDate(inputLabDate.value, 1));
+                inputLabDate.value = displayLabDate(readLabVisitDate());
+                const dateRow = document.createElement('div');
+                dateRow.style.cssText = 'display:flex;gap:6px;align-items:center';
+                inputLabDate.style.flex = '1';
+                const calendarInput = document.createElement('input');
+                calendarInput.type = 'date';
+                calendarInput.setAttribute('aria-label', 'Chọn ngày xét nghiệm');
+                calendarInput.style.cssText = 'width:42px;min-width:42px;height:42px';
+                calendarInput.value = labDateISO(inputLabDate.value);
+                calendarInput.addEventListener('change', () => {
+                    inputLabDate.value = displayLabDate(calendarInput.value);
+                    updateSidPreview();
+                });
+                dateRow.appendChild(inputLabDate);
+                dateRow.appendChild(calendarInput);
                 const sidPreview = document.createElement('div');
                 sidPreview.className = 'mnm-note';
                 const updateSidPreview = () => {
                     const shortCode = /^\d{4}$/.test(inputSid.value.trim());
-                    inputLabDate.disabled = !shortCode && inputSid.value.trim().length > 0;
-                    quickDateButtons.forEach(button => { button.disabled = inputLabDate.disabled; });
-                    visitDateButton.disabled = inputLabDate.disabled || !visitDate;
+                    // Luôn cho sửa ngày, kể cả khi đang nhập SID cũ.
+                    calendarInput.value = labDateISO(inputLabDate.value);
                     try { sidPreview.textContent = shortCode ? 'SID sẽ tìm: ' + resolveLabSid(inputSid.value, inputLabDate.value) : 'Nhập mã ngắn kèm ngày hoặc SID đầy đủ.'; }
                     catch (e) { sidPreview.textContent = e.message; }
                 };
                 inputSid.addEventListener('input', updateSidPreview);
-                inputLabDate.addEventListener('input', () => { rememberDate(); updateSidPreview(); });
-                inputLabDate.addEventListener('click', () => { try { if (!inputLabDate.disabled && inputLabDate.showPicker) inputLabDate.showPicker(); } catch (e) {} });
+                inputLabDate.addEventListener('input', updateSidPreview);
                 panelSid.appendChild(dateLabel);
-                panelSid.appendChild(inputLabDate);
-                panelSid.appendChild(dateActions);
+                panelSid.appendChild(dateRow);
                 panelSid.appendChild(sidPreview);
                 updateSidPreview();
 
@@ -3707,7 +3695,6 @@ async function autoM2KhamLamSang() {
                             let resolvedSid;
                             try { resolvedSid = resolveLabSid(sidVal, inputLabDate.value); }
                             catch (e) { sidPreview.textContent = e.message; (/^\d{4}$/.test(sidVal) ? inputLabDate : inputSid).focus(); return; }
-                            rememberDate();
                             finish({ mode: 'sid', sid: resolvedSid });
 
                         } else {
@@ -16699,7 +16686,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         const initial=buildCombinedReferralObservation(diseases,findings);
         const routing=analyzeReferralDepartments(diseases,findings);
         const suggestions=routing.departments;
-        const sourceKey=JSON.stringify(['8.04',diseases,initial,suggestions]);
+        const sourceKey=JSON.stringify(['8.05',diseases,initial,suggestions]);
         const saved=referralDrafts.get(context);
         const draft=saved && saved.sourceKey===sourceKey?saved:{observation:initial,departments:suggestions};
         const urgent=findings.some(f=>f.level==='urgent');
@@ -16712,7 +16699,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
             '<label class="rfc-label" for="rfc-preview">Lời đề nghị</label><textarea id="rfc-preview" class="rfc-preview" readonly placeholder="Chọn khoa khám để tạo lời đề nghị."></textarea>'+
             '<div class="rfc-footer"><div class="rfc-actions"><button class="rfc-fill" type="button">Điền vào đề nghị</button><button class="rfc-copy" type="button">Sao chép</button><button class="rfc-pick" type="button">Chọn ô trên phiếu</button><button class="rfc-clear" type="button">Bỏ chọn khoa</button></div>'+
             '<div class="rfc-status" role="status" aria-live="polite"></div></div></div>';
-        const panel=showAutoDockPanel('Đề nghị khám · v8.04',html,'info',0);
+        const panel=showAutoDockPanel('Đề nghị khám · v8.05',html,'info',0);
         if(!panel)return;
         panel.classList.add('madp-long');ensureReferralComposerStyles();
         const observation=panel.querySelector('.rfc-observation'),preview=panel.querySelector('.rfc-preview'),status=panel.querySelector('.rfc-status');
