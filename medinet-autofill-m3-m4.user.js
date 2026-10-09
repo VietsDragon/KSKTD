@@ -5054,7 +5054,17 @@ async function autoM2KhamLamSang() {
                     targetSid
             );
 
-        // Chỉ khớp SID đầy đủ: không tìm hậu tố qua nhiều ngày.
+        // SID cũ: giữ cách tìm 6 số cuối khi không có SID khớp chính xác.
+        // SID mới ddmmyy-xxxx/ddmmyyxxxx chỉ được tìm đầy đủ theo ngày.
+        if (!matchRows.length && /^\d{6}$/.test(targetSid)) {
+            matchRows = dataRows.filter(r => {
+                const raw = String(r[sidIndex] ?? '').trim();
+                const digits = raw.replace(/\D/g, '');
+                const isNewSid = /^\d{6}-\d{4}$/.test(raw) ||
+                    (/^\d{10}$/.test(raw) && !!labDateISO('20' + raw.slice(4,6) + '-' + raw.slice(2,4) + '-' + raw.slice(0,2)));
+                return !isNewSid && digits.length >= 6 && digits.endsWith(targetSid);
+            });
+        }
         return matchRows.map(
             r =>
                 buildDataObject(
@@ -16689,7 +16699,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
         const initial=buildCombinedReferralObservation(diseases,findings);
         const routing=analyzeReferralDepartments(diseases,findings);
         const suggestions=routing.departments;
-        const sourceKey=JSON.stringify(['8.03',diseases,initial,suggestions]);
+        const sourceKey=JSON.stringify(['8.04',diseases,initial,suggestions]);
         const saved=referralDrafts.get(context);
         const draft=saved && saved.sourceKey===sourceKey?saved:{observation:initial,departments:suggestions};
         const urgent=findings.some(f=>f.level==='urgent');
@@ -16702,7 +16712,7 @@ Vui lòng giữ nguyên trang đến khi hoàn tất.`),
             '<label class="rfc-label" for="rfc-preview">Lời đề nghị</label><textarea id="rfc-preview" class="rfc-preview" readonly placeholder="Chọn khoa khám để tạo lời đề nghị."></textarea>'+
             '<div class="rfc-footer"><div class="rfc-actions"><button class="rfc-fill" type="button">Điền vào đề nghị</button><button class="rfc-copy" type="button">Sao chép</button><button class="rfc-pick" type="button">Chọn ô trên phiếu</button><button class="rfc-clear" type="button">Bỏ chọn khoa</button></div>'+
             '<div class="rfc-status" role="status" aria-live="polite"></div></div></div>';
-        const panel=showAutoDockPanel('Đề nghị khám · v8.03',html,'info',0);
+        const panel=showAutoDockPanel('Đề nghị khám · v8.04',html,'info',0);
         if(!panel)return;
         panel.classList.add('madp-long');ensureReferralComposerStyles();
         const observation=panel.querySelector('.rfc-observation'),preview=panel.querySelector('.rfc-preview'),status=panel.querySelector('.rfc-status');
